@@ -1,0 +1,659 @@
+---
+import ExcalidrawWrapper from '@/components/ExcalidrawWrapper.tsx';
+import '@/styles/global.css';
+export const prerender = false;
+---
+
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excalidraw</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style is:global>
+    html, body { height: 100%; overflow: hidden; }
+    .drawer, .drawer-content, .drawer-side { height: 100%; }
+
+    .excal-navbar {
+      height: 48px; min-height: 48px;
+      display: flex; align-items: center;
+      padding: 0 12px;
+      background: var(--color-base-100);
+      border-bottom: 1px solid var(--color-base-300);
+      gap: 8px;
+    }
+    .excal-navbar-brand {
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 700; font-size: 0.9375rem;
+      color: var(--color-base-content);
+      flex-shrink: 0;
+    }
+    .excal-navbar-divider {
+      width: 1px; height: 20px;
+      background: var(--color-base-300);
+      flex-shrink: 0;
+    }
+    .excal-navbar-filename {
+      font-size: 0.8125rem;
+      color: var(--color-base-content);
+      opacity: 0.6;
+      flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .excal-save-status {
+      font-size: 0.6875rem;
+      display: flex; align-items: center; gap: 4px;
+      flex-shrink: 0;
+      transition: opacity 0.2s;
+    }
+    .excal-save-status .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .excal-save-status.status-saved { opacity: 0.4; }
+    .excal-save-status.status-saved .status-dot { background: #22c55e; }
+    .excal-save-status.status-saving { opacity: 0.6; }
+    .excal-save-status.status-saving .status-dot {
+      background: #f59e0b;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    .excal-save-status.status-unsaved { opacity: 0.6; }
+    .excal-save-status.status-unsaved .status-dot { background: #f59e0b; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .excal-navbar-actions {
+      display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    }
+
+    .excal-sidebar {
+      width: 240px;
+      background: var(--color-base-100);
+      border-right: 1px solid var(--color-base-300);
+      display: flex; flex-direction: column; height: 100%;
+    }
+    .excal-sidebar-header {
+      height: 48px; min-height: 48px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--color-base-300);
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; flex-shrink: 0;
+    }
+    .excal-sidebar-title {
+      font-size: 0.8125rem; font-weight: 600;
+      color: var(--color-base-content); opacity: 0.5;
+    }
+    .excal-sidebar-list {
+      flex: 1; overflow-y: auto; padding: 6px;
+    }
+    .excal-file-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 10px; border-radius: 6px;
+      cursor: pointer; transition: background 0.1s;
+      font-size: 0.8125rem; color: var(--color-base-content);
+      position: relative; user-select: none;
+    }
+    .excal-file-item:hover { background: var(--color-base-200); }
+    .excal-file-item.active {
+      background: color-mix(in srgb, var(--color-primary) 8%, white);
+      color: var(--color-primary); font-weight: 600;
+    }
+    .excal-file-item .file-icon {
+      width: 16px; height: 16px; flex-shrink: 0;
+      opacity: 0.5; display: flex; align-items: center; justify-content: center;
+    }
+    .excal-file-item.active .file-icon { opacity: 1; }
+    .excal-file-item .file-name {
+      flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .excal-file-item .file-actions {
+      display: none; gap: 2px; flex-shrink: 0;
+    }
+    .excal-file-item:hover .file-actions { display: flex; }
+    .excal-file-item .file-action-btn {
+      width: 20px; height: 20px; border: none; background: none;
+      border-radius: 4px; cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      color: var(--color-base-content); opacity: 0.4;
+      padding: 0; font-size: 12px; line-height: 1;
+    }
+    .excal-file-item .file-action-btn:hover { opacity: 1; background: var(--color-base-200); }
+    .excal-file-item .file-action-btn.danger:hover { color: #ef4444; background: #fef2f2; }
+
+    .excal-editor-wrap {
+      flex: 1; position: relative; overflow: hidden;
+      background: var(--color-base-200);
+    }
+    .excal-editor-wrap > .excal-empty-state {
+      position: absolute; inset: 0;
+    }
+
+    .file-name-input {
+      border: none; background: transparent;
+      font: inherit; color: inherit; font-weight: inherit;
+      outline: none; padding: 0; margin: 0; width: 100%;
+      border-bottom: 1.5px solid var(--color-primary);
+    }
+
+    .excal-empty-state {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100%; gap: 12px;
+      color: var(--color-base-content); opacity: 0.3;
+    }
+    .excal-empty-state svg { width: 48px; height: 48px; }
+    .excal-empty-state span { font-size: 0.875rem; }
+
+    .sidebar-menu-toggle {
+      background: none; border: none; cursor: pointer;
+      padding: 4px; border-radius: 4px; display: flex;
+      align-items: center; justify-content: center;
+      color: var(--color-base-content); opacity: 0.5;
+    }
+    .sidebar-menu-toggle:hover { opacity: 1; background: var(--color-base-200); }
+
+    .toast-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px; border-radius: 8px;
+      font-size: 0.8125rem; font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      pointer-events: auto;
+      transition: all 0.2s ease;
+      animation: slideIn 0.2s ease;
+    }
+    .toast-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .toast-success { background: #ecfdf5; color: #065f46; }
+    .toast-error { background: #fef2f2; color: #991b1b; }
+    .toast-warning { background: #fffbeb; color: #92400e; }
+    .toast-info { background: #eff6ff; color: #1e40af; }
+    .toast-item.leaving { opacity: 0; transform: translateX(100%); }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+
+    @media (max-width: 1023px) {
+      .excal-sidebar { width: 260px; }
+    }
+
+    /* User profile */
+    .user-profile {
+      display: flex; align-items: center; gap: 4px;
+      background: none; border: none; cursor: pointer;
+      border-radius: 8px; transition: background 0.1s;
+    }
+    .user-profile:hover { background: var(--color-base-200); }
+    .avatar-placeholder {
+      border-radius: 50%; background: var(--color-primary);
+      color: white; display: flex; align-items: center;
+      justify-content: center; font-weight: 700;
+    }
+    .avatar-lg { width: 40px; height: 40px; font-size: 1rem; }
+    .user-name { opacity: 0.7; }
+    .chevron-icon { opacity: 0.4; }
+    .user-dropdown {
+      display: none; position: absolute; right: 0; top: 100%; z-index: 50;
+      background: var(--color-base-100); border: 1px solid var(--color-base-300);
+      border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      min-width: 220px; margin-top: 6px; overflow: hidden;
+    }
+    .user-dropdown.show { display: block; }
+    .dropdown-header {
+      padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+    }
+    .dropdown-name { font-weight: 600; font-size: 0.875rem; }
+    .dropdown-role { font-size: 0.75rem; opacity: 0.5; }
+    .dropdown-divider { height: 1px; background: var(--color-base-300); }
+    .dropdown-item {
+      width: 100%; display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; background: none; border: none;
+      font: inherit; font-size: 0.8125rem; cursor: pointer;
+      text-align: left; color: var(--color-base-content);
+    }
+    .dropdown-item:hover { background: var(--color-base-200); }
+    .dropdown-item-danger { color: #ef4444; }
+    .dropdown-item-danger:hover { background: #fef2f2; }
+    .dropdown-item svg { width: 16px; height: 16px; }
+
+    .btn-icon {
+      background: none; border: none; cursor: pointer;
+      padding: 4px; border-radius: 4px; display: flex;
+      align-items: center; justify-content: center;
+      color: var(--color-base-content); opacity: 0.5;
+    }
+    .btn-icon:hover { opacity: 1; background: var(--color-base-200); }
+  </style>
+</head>
+<body>
+  <div class="drawer lg:drawer-open">
+    <input id="sidebar-drawer" type="checkbox" class="drawer-toggle" />
+
+    <div class="drawer-content flex flex-col" style="height:100vh">
+      <nav class="excal-navbar">
+        <label for="sidebar-drawer" class="sidebar-menu-toggle lg:hidden">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </label>
+        <div class="excal-navbar-brand">
+          <div class="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-primary-content font-bold text-sm">Y</div>
+          <span>Excalidraw</span>
+        </div>
+        <div class="excal-navbar-divider"></div>
+        <span class="excal-navbar-filename" id="current-filename">选择或创建一个画板</span>
+        <span class="excal-save-status" id="save-status" style="display:none">
+          <span class="status-dot"></span>
+          <span class="status-text"></span>
+        </span>
+        <div class="excal-navbar-actions">
+          <button class="btn-icon" id="export-btn" onclick="exportFile()" title="导出 .excalidraw 文件">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          </button>
+          <div style="position:relative">
+            <button class="user-profile" id="user-profile-btn" style="padding:2px 6px 2px 2px">
+              <div class="avatar-placeholder" style="width:26px;height:26px;font-size:0.625rem">
+                <span id="header-avatar">?</span>
+              </div>
+              <span class="user-name" id="header-name" style="font-size:0.75rem;max-width:80px">加载中</span>
+              <svg class="chevron-icon" style="width:12px;height:12px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="user-dropdown" id="user-dropdown">
+              <div class="dropdown-header">
+                <div class="avatar-placeholder avatar-lg"><span id="dropdown-avatar">?</span></div>
+                <div>
+                  <div class="dropdown-name" id="dropdown-name">用户</div>
+                  <div class="dropdown-role" id="dropdown-role">Excalidraw</div>
+                </div>
+              </div>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item dropdown-item-danger" onclick="handleLogout()">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                退出登录
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div style="display:flex;flex:1;min-height:0">
+        <div class="excal-editor-wrap" id="editor-container">
+          <div id="editor-empty-state" class="excal-empty-state">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            <span>选择或新建一个画板开始绘图</span>
+          </div>
+          <ExcalidrawWrapper client:only="react" />
+        </div>
+      </div>
+    </div>
+
+    <div class="drawer-side z-40">
+      <label for="sidebar-drawer" class="drawer-overlay"></label>
+      <aside class="excal-sidebar">
+        <div class="excal-sidebar-header">
+          <span class="excal-sidebar-title">画板文件</span>
+          <button class="btn-icon" onclick="createFile()" title="新建画板" style="width:22px;height:22px">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          </button>
+        </div>
+        <div class="excal-sidebar-list" id="file-list">
+          <div style="display:flex;align-items:center;justify-content:center;padding:40px 0;color:var(--color-base-content);opacity:0.3;font-size:0.8125rem">
+            <span class="loading loading-spinner loading-sm"></span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="toast-container" style="position:fixed;top:1rem;right:1rem;z-index:99999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none"></div>
+
+  <script is:inline>
+    const API = '/api/files';
+    let allFiles = [];
+    let currentFileId = null;
+    let saveQueue = {};
+    let discoveryTimer = null;
+
+    function t() { return localStorage.getItem('excalidraw_token'); }
+    function ah() { return { Authorization: 'Bearer ' + t() }; }
+    function jh() { return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t() }; }
+
+    function escapeHtml(v) {
+      if (v == null) return '';
+      return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function toast(type, msg) {
+      var c = document.getElementById('toast-container');
+      var icons = {
+        success: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>',
+        error: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>',
+        info: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+        warning: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>',
+      };
+      var el = document.createElement('div');
+      el.className = 'toast-item toast-' + type;
+      el.innerHTML = (icons[type] || icons.info) + '<span>' + msg + '</span>';
+      c.appendChild(el);
+      setTimeout(function() { el.classList.add('leaving'); setTimeout(function() { el.remove(); }, 220); }, 3000);
+    }
+
+    function handleLogout() {
+      localStorage.removeItem('excalidraw_token');
+      localStorage.removeItem('excalidraw_username');
+      window.location.href = '/login';
+    }
+
+    function setCurrentFileName(name) {
+      document.getElementById('current-filename').textContent = name || '选择或创建一个画板';
+    }
+
+    async function loadFiles() {
+      try {
+        const res = await fetch(API, { headers: ah() });
+        const data = await res.json();
+        if (data.code === 0) {
+          const prevIds = new Set(allFiles.map(f => f.id));
+          const newIds = new Set(data.data.map(f => f.id));
+          allFiles = data.data;
+          renderFiles();
+          // If current file was deleted externally, reset
+          if (currentFileId && !newIds.has(currentFileId)) {
+            currentFileId = null;
+            setCurrentFileName(null);
+            setSaveStatus('hidden');
+            document.getElementById('editor-empty-state').style.display = '';
+            window.dispatchEvent(new CustomEvent('excalidraw:load', {
+              detail: { fileId: 0, sceneData: { elements: [], appState: {} } }
+            }));
+          }
+          // Auto-select first file if none selected
+          if (allFiles.length > 0 && !currentFileId) {
+            selectFile(allFiles[0].id);
+          }
+        } else {
+          document.getElementById('file-list').innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--color-base-content);opacity:0.3;font-size:0.8125rem">加载失败</div>';
+        }
+      } catch (e) {
+        document.getElementById('file-list').innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--color-base-content);opacity:0.3;font-size:0.8125rem">网络错误</div>';
+      }
+    }
+
+    // Auto-discovery: poll for new files every 10 seconds
+    function startDiscovery() {
+      if (discoveryTimer) clearInterval(discoveryTimer);
+      discoveryTimer = setInterval(function() {
+        fetch(API, { headers: ah() }).then(r => r.json()).then(data => {
+          if (data.code === 0) {
+            const prevIds = new Set(allFiles.map(f => f.id));
+            var foundNew = false;
+            data.data.forEach(function(f) {
+              if (!prevIds.has(f.id)) foundNew = true;
+            });
+            if (foundNew) {
+              allFiles = data.data;
+              renderFiles();
+              toast('info', '发现新的画板文件');
+            }
+          }
+        }).catch(function(){});
+      }, 10000);
+    }
+
+    function renderFiles() {
+      var container = document.getElementById('file-list');
+      if (allFiles.length === 0) {
+        container.innerHTML =
+          '<div style="display:flex;flex-direction:column;align-items:center;padding:40px 12px;color:var(--color-base-content);opacity:0.3;font-size:0.8125rem;text-align:center;gap:8px">' +
+          '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="width:32px;height:32px"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>' +
+          '<span>还没有画板文件</span></div>';
+        return;
+      }
+      container.innerHTML = allFiles.map(function(f) {
+        var active = f.id === currentFileId ? ' active' : '';
+        var icon = active ? '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>'
+          : '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>';
+        var safeId = escapeHtml(String(f.id));
+        var safeName = escapeHtml(f.name);
+        return '<div class="excal-file-item' + active + '" data-id="' + safeId + '" onclick="selectFile(\'' + safeId + '\')">' +
+          '<span class="file-icon">' + icon + '</span>' +
+          '<span class="file-name">' + safeName + '</span>' +
+          '<span class="file-actions">' +
+          '<button class="file-action-btn" onclick="event.stopPropagation();startRename(\'' + safeId + '\')" title="重命名">✎</button>' +
+          '<button class="file-action-btn danger" onclick="event.stopPropagation();deleteFile(\'' + safeId + '\')" title="删除">✕</button>' +
+          '</span></div>';
+      }).join('');
+    }
+
+    async function createFile() {
+      try {
+        var now = new Date();
+        var defaultName = '未命名 ' + (now.getMonth() + 1) + '/' + now.getDate() + ' ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0') + '.' + String(now.getMilliseconds()).padStart(3, '0');
+        const res = await fetch(API, {
+          method: 'POST', headers: jh(),
+          body: JSON.stringify({ name: defaultName }),
+        });
+        const data = await res.json();
+        if (data.code === 0) {
+          toast('success', '已创建新画板');
+          await loadFiles();
+          selectFile(data.data.id);
+        } else {
+          toast('error', data.msg || '创建失败');
+        }
+      } catch (e) {
+        toast('error', '创建失败');
+      }
+    }
+
+    async function selectFile(id) {
+      if (id === currentFileId) return;
+      if (currentFileId) await doSaveCurrent();
+      currentFileId = id;
+      renderFiles();
+      var f = allFiles.find(function(f) { return f.id === id; });
+      if (f) setCurrentFileName(f.name);
+      document.getElementById('editor-empty-state').style.display = 'none';
+      setSaveStatus('saved');
+      try {
+        const res = await fetch(API + '/' + encodeURIComponent(id), { headers: ah() });
+        const data = await res.json();
+        if (data.code === 0) {
+          var sceneData = {};
+          try { sceneData = JSON.parse(data.data.scene_data || '{}'); } catch(e) {}
+          if (!sceneData.elements) sceneData = { elements: [], appState: sceneData.appState || {} };
+          window.dispatchEvent(new CustomEvent('excalidraw:load', {
+            detail: { fileId: id, sceneData: sceneData }
+          }));
+        }
+      } catch (e) {
+        toast('error', '加载文件失败');
+      }
+    }
+
+    async function doSaveCurrent() {
+      return new Promise(function(resolve) {
+        if (!currentFileId) { resolve(); return; }
+        window.dispatchEvent(new CustomEvent('excalidraw:save-now'));
+        var saved = saveQueue[currentFileId];
+        if (saved) {
+          var id = currentFileId;
+          doApiSave(id, saved).then(resolve);
+        } else {
+          resolve();
+        }
+      });
+    }
+
+    async function doApiSave(id, sceneDataStr) {
+      try {
+        await fetch(API + '/' + encodeURIComponent(id), {
+          method: 'PUT', headers: jh(),
+          body: JSON.stringify({ scene_data: sceneDataStr }),
+        });
+      } catch (e) {}
+    }
+
+    async function deleteFile(id) {
+      var f = allFiles.find(function(f) { return f.id === id; });
+      if (!f) return;
+      if (!confirm('确定删除「' + f.name + '」吗？此操作不可恢复。')) return;
+      try {
+        const res = await fetch(API + '/' + encodeURIComponent(id), {
+          method: 'DELETE', headers: jh(),
+        });
+        const data = await res.json();
+        if (data.code === 0) {
+          toast('success', '已删除');
+          if (currentFileId === id) {
+            currentFileId = null;
+            setCurrentFileName(null);
+            setSaveStatus('hidden');
+            document.getElementById('editor-empty-state').style.display = '';
+            window.dispatchEvent(new CustomEvent('excalidraw:load', {
+              detail: { fileId: 0, sceneData: { elements: [], appState: {} } }
+            }));
+          }
+          await loadFiles();
+        } else {
+          toast('error', data.msg || '删除失败');
+        }
+      } catch (e) {
+        toast('error', '删除失败');
+      }
+    }
+
+    function startRename(id) {
+      var f = allFiles.find(function(f) { return f.id === id; });
+      if (!f) return;
+      var el = document.querySelector('.excal-file-item[data-id="' + escapeHtml(String(id)) + '"] .file-name');
+      if (!el) return;
+      var oldName = f.name;
+      el.innerHTML = '<input type="text" class="file-name-input" value="' + escapeHtml(oldName) + '" autofocus />';
+      var input = el.querySelector('input');
+      input.select();
+      function done() {
+        var newName = input.value.trim() || oldName;
+        renameFile(id, newName);
+      }
+      input.addEventListener('blur', done);
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { input.blur(); }
+        if (e.key === 'Escape') { input.value = oldName; input.blur(); }
+      });
+    }
+
+    async function renameFile(id, name) {
+      try {
+        const res = await fetch(API + '/' + encodeURIComponent(id), {
+          method: 'PUT', headers: jh(),
+          body: JSON.stringify({ name: name }),
+        });
+        const data = await res.json();
+        if (data.code === 0) {
+          if (currentFileId === id) {
+            currentFileId = data.data.id;
+            setCurrentFileName(data.data.name);
+          }
+          await loadFiles();
+          toast('success', '已重命名');
+        } else {
+          toast('error', data.msg || '重命名失败');
+        }
+      } catch (e) {
+        toast('error', '重命名失败');
+      }
+    }
+
+    async function exportFile() {
+      if (!currentFileId) { toast('warning', '请先选择一个画板'); return; }
+      var f = allFiles.find(function(f) { return f.id === currentFileId; });
+      if (!f) return;
+      try {
+        const res = await fetch(API + '/' + encodeURIComponent(currentFileId), { headers: ah() });
+        const data = await res.json();
+        if (data.code === 0) {
+          var sceneData = data.data.scene_data;
+          var blob = new Blob([sceneData], { type: 'application/json' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = (f.name || 'drawing') + '.excalidraw';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          toast('success', '已导出');
+        }
+      } catch (e) {
+        toast('error', '导出失败');
+      }
+    }
+
+    // Save status
+    function setSaveStatus(state) {
+      var el = document.getElementById('save-status');
+      if (!el) return;
+      if (state === 'hidden') { el.style.display = 'none'; return; }
+      el.style.display = 'flex';
+      el.className = 'excal-save-status status-' + state;
+      var textEl = el.querySelector('.status-text');
+      if (state === 'saved') textEl.textContent = '已保存';
+      else if (state === 'saving') textEl.textContent = '保存中...';
+      else if (state === 'unsaved') textEl.textContent = '有修改';
+    }
+
+    // Auto-save listener
+    window.addEventListener('excalidraw:autosave', function(e) {
+      var detail = e.detail;
+      if (!detail.fileId) return;
+      saveQueue[detail.fileId] = detail.sceneData;
+      setSaveStatus('saving');
+      if (detail.immediate) {
+        doApiSave(detail.fileId, detail.sceneData).then(function() {
+          delete saveQueue[detail.fileId];
+          setSaveStatus('saved');
+        });
+      } else {
+        doApiSave(detail.fileId, detail.sceneData).then(function() {
+          delete saveQueue[detail.fileId];
+          setSaveStatus('saved');
+        });
+      }
+    });
+
+    window.addEventListener('excalidraw:dirty', function() {
+      if (currentFileId) setSaveStatus('unsaved');
+    });
+
+    // Profile dropdown
+    document.addEventListener('DOMContentLoaded', function() {
+      var username = localStorage.getItem('excalidraw_username') || '用户';
+      var initial = username.charAt(0).toUpperCase();
+      document.querySelectorAll('#header-avatar, #dropdown-avatar').forEach(function(el) { el.textContent = initial; });
+      document.querySelectorAll('#header-name, #dropdown-name').forEach(function(el) { el.textContent = username; });
+
+      var profileBtn = document.getElementById('user-profile-btn');
+      var dropdown = document.getElementById('user-dropdown');
+      if (profileBtn && dropdown) {
+        profileBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          dropdown.classList.toggle('show');
+        });
+        document.addEventListener('click', function() {
+          dropdown.classList.remove('show');
+        });
+      }
+    });
+
+    // Initialize
+    (async function init() {
+      if (!t()) { window.location.href = '/login'; return; }
+      try {
+        const res = await fetch(API, { headers: ah() });
+        if (res.status === 401) { handleLogout(); return; }
+      } catch(e) {}
+      await loadFiles();
+      startDiscovery();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* Excalidraw canvas sizing fix:
+   The library measures its own container with getBoundingClientRect().
+   If the container is a normal block, its height is content-based which causes
+   a runaway feedback loop where the canvas grows to ~2^25 px. Forcing the
+   container to fill its parent (which has explicit absolute dimensions) breaks
+   the loop and gives Excalidraw a stable size to measure. */
+.exc-host > .excalidraw,
+.exc-host > .excalidraw.excalidraw-container {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  top: 0; left: 0;
+}
