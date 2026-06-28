@@ -1,19 +1,46 @@
 ---
 import ExcalidrawWrapper from '@/components/ExcalidrawWrapper.tsx';
 import '@/styles/global.css';
-export const prerender = false;
+const excalidrawVersion = '0.18.1';
 ---
 
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Excalidraw</title>
+  <title id="page-title">YooExcalidraw</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script is:inline>
+    (function(){try{var s=JSON.parse(localStorage.getItem('yooexcalidraw_settings')||'{}'),t=s.theme||'auto',e=t==='auto'?(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):t;document.documentElement.setAttribute('data-theme',e)}catch(e){}})();
+  </script>
   <style is:global>
     html, body { height: 100%; overflow: hidden; }
     .drawer, .drawer-content, .drawer-side { height: 100%; }
+
+    .drawer { display: flex; flex-direction: row-reverse; }
+    .drawer-toggle { display: none; }
+    .drawer-content { flex: 1; min-width: 0; }
+    .drawer-side {
+      position: static;
+      width: 240px;
+      height: 100%;
+      transform: none !important;
+      overflow: hidden;
+      flex-shrink: 0;
+      z-index: auto;
+    }
+    .drawer-side > :not(.drawer-overlay) {
+      translate: 0% !important;
+      transition: none !important;
+      will-change: auto !important;
+    }
+    .drawer-side.with-transition,
+    .drawer-side.with-transition > :not(.drawer-overlay) {
+      transition: width 0.2s ease !important;
+    }
+    .drawer-side .drawer-overlay { display: none; }
+    .drawer-toggle:not(:checked) ~ .drawer-side { width: 0; }
 
     .excal-navbar {
       height: 48px; min-height: 48px;
@@ -40,26 +67,33 @@ export const prerender = false;
       opacity: 0.6;
       flex: 1; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      cursor: pointer;
+    }
+    .excal-navbar-filename .file-name-input-inline {
+      width: 100%;
+      font-size: inherit; font-family: inherit; color: inherit;
+      background: transparent; border: none; outline: none; padding: 0;
     }
     .excal-save-status {
-      font-size: 0.6875rem;
-      display: flex; align-items: center; gap: 4px;
+      display: flex; align-items: center; justify-content: center;
+      width: 18px; height: 18px;
       flex-shrink: 0;
       transition: opacity 0.2s;
+      cursor: default;
     }
     .excal-save-status .status-dot {
-      width: 6px; height: 6px;
+      width: 7px; height: 7px;
       border-radius: 50%;
       flex-shrink: 0;
     }
-    .excal-save-status.status-saved { opacity: 0.4; }
+    .excal-save-status.status-saved { opacity: 0.45; }
     .excal-save-status.status-saved .status-dot { background: #22c55e; }
-    .excal-save-status.status-saving { opacity: 0.6; }
+    .excal-save-status.status-saving { opacity: 0.7; }
     .excal-save-status.status-saving .status-dot {
       background: #f59e0b;
       animation: pulse 1s ease-in-out infinite;
     }
-    .excal-save-status.status-unsaved { opacity: 0.6; }
+    .excal-save-status.status-unsaved { opacity: 0.85; }
     .excal-save-status.status-unsaved .status-dot { background: #f59e0b; }
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -80,32 +114,82 @@ export const prerender = false;
       padding: 0 12px;
       border-bottom: 1px solid var(--color-base-300);
       display: flex; align-items: center; justify-content: space-between;
-      gap: 8px; flex-shrink: 0;
+      gap: 4px; flex-shrink: 0;
     }
     .excal-sidebar-title {
       font-size: 0.8125rem; font-weight: 600;
       color: var(--color-base-content); opacity: 0.5;
     }
     .excal-sidebar-list {
-      flex: 1; overflow-y: auto; padding: 6px;
+      flex: 1; overflow-y: auto; padding: 4px 6px 12px;
+      transition: background 0.15s;
     }
+    .excal-sidebar-list.drag-over {
+      background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+    }
+    #dir-list-drop-zone {
+      min-height: 40px;
+      transition: background 0.15s;
+    }
+    #dir-list-drop-zone.drag-over {
+      background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+      border-radius: 6px;
+    }
+
+    .dir-section { margin-bottom: 1px; }
+    .dir-section:last-child { margin-bottom: 0; }
+
+    .dir-header {
+      display: flex; align-items: center; gap: 4px;
+      padding: 7px 8px 7px 6px; border-radius: 6px; cursor: pointer;
+      font-size: 0.8125rem; font-weight: 600;
+      color: var(--color-base-content);
+      user-select: none; transition: background 0.1s;
+    }
+    .dir-header:hover { background: var(--color-base-200); }
+    .dir-header .dir-arrow {
+      width: 16px; flex-shrink: 0; font-size: 9px;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0.5;
+    }
+    .dir-header .dir-icon {
+      width: 15px; flex-shrink: 0; opacity: 0.4;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .dir-header .dir-label {
+      flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .dir-header .dir-add-btn,
+    .dir-header .dir-close-btn {
+      width: 18px; height: 18px; border: none; background: none;
+      border-radius: 4px; cursor: pointer; display: none;
+      align-items: center; justify-content: center;
+      color: var(--color-base-content); opacity: 0.4;
+      padding: 0; font-size: 11px; line-height: 1;
+    }
+    .dir-header:hover .dir-add-btn,
+    .dir-header:hover .dir-close-btn { display: flex; }
+    .dir-header .dir-add-btn:hover { opacity: 1; color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
+    .dir-header .dir-close-btn:hover { opacity: 1; color: #ef4444; background: #fef2f2; }
+
+    .dir-files {
+      margin-left: 8px; padding-left: 8px;
+      border-left: 1.5px solid var(--color-base-300);
+    }
+
     .excal-file-item {
       display: flex; align-items: center; gap: 6px;
-      padding: 8px 10px; border-radius: 6px;
+      padding: 5px 8px; border-radius: 6px;
       cursor: pointer; transition: background 0.1s;
       font-size: 0.8125rem; color: var(--color-base-content);
       position: relative; user-select: none;
     }
     .excal-file-item:hover { background: var(--color-base-200); }
     .excal-file-item.active {
-      background: color-mix(in srgb, var(--color-primary) 8%, white);
+      background: color-mix(in srgb, var(--color-primary) 12%, transparent);
       color: var(--color-primary); font-weight: 600;
     }
-    .excal-file-item .file-icon {
-      width: 16px; height: 16px; flex-shrink: 0;
-      opacity: 0.5; display: flex; align-items: center; justify-content: center;
-    }
-    .excal-file-item.active .file-icon { opacity: 1; }
     .excal-file-item .file-name {
       flex: 1; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -118,11 +202,17 @@ export const prerender = false;
       width: 20px; height: 20px; border: none; background: none;
       border-radius: 4px; cursor: pointer; display: flex;
       align-items: center; justify-content: center;
-      color: var(--color-base-content); opacity: 0.4;
+      color: var(--color-base-content); opacity: 0.35;
       padding: 0; font-size: 12px; line-height: 1;
     }
     .excal-file-item .file-action-btn:hover { opacity: 1; background: var(--color-base-200); }
     .excal-file-item .file-action-btn.danger:hover { color: #ef4444; background: #fef2f2; }
+
+    .dir-empty {
+      padding: 10px 8px; font-size: 0.75rem;
+      color: var(--color-base-content); opacity: 0.3;
+      text-align: center;
+    }
 
     .excal-editor-wrap {
       flex: 1; position: relative; overflow: hidden;
@@ -177,45 +267,6 @@ export const prerender = false;
       .excal-sidebar { width: 260px; }
     }
 
-    /* User profile */
-    .user-profile {
-      display: flex; align-items: center; gap: 4px;
-      background: none; border: none; cursor: pointer;
-      border-radius: 8px; transition: background 0.1s;
-    }
-    .user-profile:hover { background: var(--color-base-200); }
-    .avatar-placeholder {
-      border-radius: 50%; background: var(--color-primary);
-      color: white; display: flex; align-items: center;
-      justify-content: center; font-weight: 700;
-    }
-    .avatar-lg { width: 40px; height: 40px; font-size: 1rem; }
-    .user-name { opacity: 0.7; }
-    .chevron-icon { opacity: 0.4; }
-    .user-dropdown {
-      display: none; position: absolute; right: 0; top: 100%; z-index: 50;
-      background: var(--color-base-100); border: 1px solid var(--color-base-300);
-      border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-      min-width: 220px; margin-top: 6px; overflow: hidden;
-    }
-    .user-dropdown.show { display: block; }
-    .dropdown-header {
-      padding: 14px 16px; display: flex; align-items: center; gap: 12px;
-    }
-    .dropdown-name { font-weight: 600; font-size: 0.875rem; }
-    .dropdown-role { font-size: 0.75rem; opacity: 0.5; }
-    .dropdown-divider { height: 1px; background: var(--color-base-300); }
-    .dropdown-item {
-      width: 100%; display: flex; align-items: center; gap: 10px;
-      padding: 10px 16px; background: none; border: none;
-      font: inherit; font-size: 0.8125rem; cursor: pointer;
-      text-align: left; color: var(--color-base-content);
-    }
-    .dropdown-item:hover { background: var(--color-base-200); }
-    .dropdown-item-danger { color: #ef4444; }
-    .dropdown-item-danger:hover { background: #fef2f2; }
-    .dropdown-item svg { width: 16px; height: 16px; }
-
     .btn-icon {
       background: none; border: none; cursor: pointer;
       padding: 4px; border-radius: 4px; display: flex;
@@ -223,62 +274,111 @@ export const prerender = false;
       color: var(--color-base-content); opacity: 0.5;
     }
     .btn-icon:hover { opacity: 1; background: var(--color-base-200); }
+    .btn-primary {
+      background: var(--color-primary); color: var(--color-primary-content);
+      border: none; cursor: pointer; border-radius: 8px;
+      padding: 8px 20px; font-size: 0.875rem; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+
+    .open-folder-prompt {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100%; gap: 16px;
+      color: var(--color-base-content);
+    }
+    .open-folder-prompt svg { width: 64px; height: 64px; opacity: 0.2; }
+    .open-folder-prompt span { font-size: 0.9375rem; opacity: 0.5; }
+
+    #theme-toggle { position: relative; }
+    #theme-toggle .theme-icon { display: flex; align-items: center; justify-content: center; }
+
+    details.dropdown summary::marker,
+    details.dropdown summary::-webkit-details-marker { display: none; }
+    details.dropdown summary { list-style: none; display: flex; align-items: center; }
+
+    .settings-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.5rem 0; }
+    .settings-label .text-sm { font-size: 0.8125rem; font-weight: 500; user-select: none; }
+
+    .manage-dialog {
+      border: none; border-radius: 12px; padding: 0;
+      width: 420px; max-width: 90vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      background: var(--color-base-100);
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      margin: 0;
+    }
+    .manage-dialog::backdrop { background: rgba(0,0,0,0.4); }
+    .manage-dialog-inner { padding: 24px; }
+    .manage-dialog h2 { font-size: 1rem; font-weight: 600; margin: 0 0 20px; color: var(--color-base-content); }
+    .manage-section { margin-bottom: 20px; }
+    .manage-section h3 { font-size: 0.8125rem; font-weight: 600; color: var(--color-base-content); opacity: 0.6; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .manage-dir-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px; border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .manage-dir-item:hover { background: var(--color-base-200); }
+    .manage-dir-item .dir-name { flex: 1; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .manage-dir-item .dir-actions { display: flex; gap: 2px; flex-shrink: 0; }
+    .manage-dir-item .dir-actions button {
+      width: 22px; height: 22px; border: none; background: none; cursor: pointer;
+      border-radius: 4px; display: flex; align-items: center; justify-content: center;
+      color: var(--color-base-content); opacity: 0.4;
+    }
+    .manage-dir-item .dir-actions button:hover { opacity: 0.8; background: var(--color-base-300); }
+    .manage-dir-item .dir-actions button.danger:hover { color: #ef4444; }
+    .manage-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+    .manage-footer button {
+      padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer;
+      font-size: 0.8125rem; font-weight: 500;
+    }
+    .manage-close-btn {
+      background: var(--color-base-200);
+      color: var(--color-base-content);
+      transition: background 0.15s, transform 0.1s;
+    }
+    .manage-close-btn:hover { background: var(--color-base-300); }
+    .manage-close-btn:active { transform: scale(0.96); }
   </style>
 </head>
 <body>
-  <div class="drawer lg:drawer-open">
+  <div class="drawer">
     <input id="sidebar-drawer" type="checkbox" class="drawer-toggle" />
 
     <div class="drawer-content flex flex-col" style="height:100vh">
       <nav class="excal-navbar">
-        <label for="sidebar-drawer" class="sidebar-menu-toggle lg:hidden">
+        <label for="sidebar-drawer" class="sidebar-menu-toggle">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </label>
-        <div class="excal-navbar-brand">
-          <div class="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-primary-content font-bold text-sm">Y</div>
-          <span>Excalidraw</span>
-        </div>
-        <div class="excal-navbar-divider"></div>
-        <span class="excal-navbar-filename" id="current-filename">选择或创建一个画板</span>
-        <span class="excal-save-status" id="save-status" style="display:none">
+        <span class="excal-navbar-filename" id="current-filename" onclick="startRenameNavbar()">未选择文件</span>
+        <span class="excal-save-status" id="save-status" style="display:none" title="">
           <span class="status-dot"></span>
-          <span class="status-text"></span>
         </span>
         <div class="excal-navbar-actions">
-          <button class="btn-icon" id="export-btn" onclick="exportFile()" title="导出 .excalidraw 文件">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <button class="btn-icon" id="save-btn" onclick="saveCurrentFile()" title="保存" style="display:none">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
           </button>
-          <div style="position:relative">
-            <button class="user-profile" id="user-profile-btn" style="padding:2px 6px 2px 2px">
-              <div class="avatar-placeholder" style="width:26px;height:26px;font-size:0.625rem">
-                <span id="header-avatar">?</span>
-              </div>
-              <span class="user-name" id="header-name" style="font-size:0.75rem;max-width:80px">加载中</span>
-              <svg class="chevron-icon" style="width:12px;height:12px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-            </button>
-            <div class="user-dropdown" id="user-dropdown">
-              <div class="dropdown-header">
-                <div class="avatar-placeholder avatar-lg"><span id="dropdown-avatar">?</span></div>
-                <div>
-                  <div class="dropdown-name" id="dropdown-name">用户</div>
-                  <div class="dropdown-role" id="dropdown-role">Excalidraw</div>
-                </div>
-              </div>
-              <div class="dropdown-divider"></div>
-              <button class="dropdown-item dropdown-item-danger" onclick="handleLogout()">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                退出登录
-              </button>
-            </div>
-          </div>
+          <button class="btn-icon" id="theme-toggle" onclick="cycleTheme()" title="点击切换主题">
+            <svg id="theme-icon-auto" class="theme-icon" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <svg id="theme-icon-light" class="theme-icon" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg id="theme-icon-dark" class="theme-icon" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:none"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="btn-icon" id="manage-btn" onclick="openManageDialog()" title="管理">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </button>
         </div>
       </nav>
 
       <div style="display:flex;flex:1;min-height:0">
         <div class="excal-editor-wrap" id="editor-container">
-          <div id="editor-empty-state" class="excal-empty-state">
+          <div id="editor-empty-state" class="excal-empty-state" style="display:none">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-            <span>选择或新建一个画板开始绘图</span>
+            <span>选择一个画板文件开始绘图</span>
           </div>
           <ExcalidrawWrapper client:only="react" />
         </div>
@@ -289,14 +389,27 @@ export const prerender = false;
       <label for="sidebar-drawer" class="drawer-overlay"></label>
       <aside class="excal-sidebar">
         <div class="excal-sidebar-header">
-          <span class="excal-sidebar-title">画板文件</span>
-          <button class="btn-icon" onclick="createFile()" title="新建画板" style="width:22px;height:22px">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-          </button>
+          <div style="display:flex;align-items:center;gap:6px;flex:1">
+            <img src="/logo.svg" alt="YooExcalidraw" style="width:20px;height:20px;flex-shrink:0" />
+            <span style="font-weight:700;font-size:0.9375rem;white-space:nowrap">YooExcalidraw</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:2px">
+            <button class="btn-icon" onclick="createFile()" title="新建画板" style="width:22px;height:22px">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            </button>
+            <button class="btn-icon" onclick="addDirectory()" title="添加目录" style="width:22px;height:22px">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+            </button>
+          </div>
         </div>
         <div class="excal-sidebar-list" id="file-list">
-          <div style="display:flex;align-items:center;justify-content:center;padding:40px 0;color:var(--color-base-content);opacity:0.3;font-size:0.8125rem">
-            <span class="loading loading-spinner loading-sm"></span>
+          <div id="folder-prompt" class="open-folder-prompt">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+            <span>打开一个文件夹</span>
+            <button class="btn-primary" onclick="addDirectory()">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+              选择文件夹
+            </button>
           </div>
         </div>
       </aside>
@@ -306,20 +419,15 @@ export const prerender = false;
   <div id="toast-container" style="position:fixed;top:1rem;right:1rem;z-index:99999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none"></div>
 
   <script is:inline>
-    const API = '/api/files';
-    let allFiles = [];
-    let currentFileId = null;
-    let saveQueue = {};
-    let discoveryTimer = null;
+    var __excalidrawReady = false;
+    window.addEventListener('excalidraw:ready', function() { __excalidrawReady = true; });
 
-    function t() { return localStorage.getItem('excalidraw_token'); }
-    function ah() { return { Authorization: 'Bearer ' + t() }; }
-    function jh() { return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t() }; }
-
-    function escapeHtml(v) {
-      if (v == null) return '';
-      return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    var dirs = [];
+    var nextDirId = 1;
+    var activeFileId = null;
+    var activeFileHandle = null;
+    var hasUnsavedChanges = false;
+    var settings = { theme: 'auto', autoSave: false };
 
     function toast(type, msg) {
       var c = document.getElementById('toast-container');
@@ -336,203 +444,514 @@ export const prerender = false;
       setTimeout(function() { el.classList.add('leaving'); setTimeout(function() { el.remove(); }, 220); }, 3000);
     }
 
-    function handleLogout() {
-      localStorage.removeItem('excalidraw_token');
-      localStorage.removeItem('excalidraw_username');
-      window.location.href = '/login';
+    function setSaveStatus(state) {
+      var el = document.getElementById('save-status');
+      if (!el) return;
+      if (state === 'hidden') { el.style.display = 'none'; return; }
+      el.style.display = 'flex';
+      el.className = 'excal-save-status status-' + state;
+      var title = '';
+      if (state === 'saved') title = '已保存';
+      else if (state === 'saving') title = '保存中...';
+      else if (state === 'unsaved') title = '有修改未保存';
+      el.title = title;
     }
 
     function setCurrentFileName(name) {
-      document.getElementById('current-filename').textContent = name || '选择或创建一个画板';
+      document.getElementById('current-filename').textContent = name || '未选择文件';
+      document.title = name ? name + ' - YooExcalidraw' : 'YooExcalidraw';
     }
 
-    async function loadFiles() {
+    function escapeHtml(v) {
+      if (v == null) return '';
+      return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function getDirById(id) {
+      for (var i = 0; i < dirs.length; i++) { if (dirs[i].id === id) return dirs[i]; }
+      return null;
+    }
+
+    function getFileById(fileId) {
+      if (!fileId) return null;
+      var parts = fileId.split('::', 2);
+      if (parts.length !== 2) return null;
+      var dir = getDirById(parts[0]);
+      if (!dir) return null;
+      for (var i = 0; i < dir.files.length; i++) {
+        if (dir.files[i].id === fileId) return dir.files[i];
+      }
+      return null;
+    }
+
+    function getFileDir(fileId) {
+      if (!fileId) return null;
+      var parts = fileId.split('::', 2);
+      return getDirById(parts[0]);
+    }
+
+    // --- IndexedDB persistence for directory handles ---
+
+    function openDB() {
+      return new Promise(function(resolve, reject) {
+        var req = indexedDB.open('yooexcalidraw', 1);
+        req.onupgradeneeded = function(e) {
+          var db = e.target.result;
+          if (!db.objectStoreNames.contains('handles')) {
+            db.createObjectStore('handles', { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = function(e) { resolve(e.target.result); };
+        req.onerror = function(e) { reject(e.target.error); };
+      });
+    }
+
+    async function persistDirHandle(dirId, handle, name) {
       try {
-        const res = await fetch(API, { headers: ah() });
-        const data = await res.json();
-        if (data.code === 0) {
-          const prevIds = new Set(allFiles.map(f => f.id));
-          const newIds = new Set(data.data.map(f => f.id));
-          allFiles = data.data;
-          renderFiles();
-          // If current file was deleted externally, reset
-          if (currentFileId && !newIds.has(currentFileId)) {
-            currentFileId = null;
-            setCurrentFileName(null);
-            setSaveStatus('hidden');
-            document.getElementById('editor-empty-state').style.display = '';
-            window.dispatchEvent(new CustomEvent('excalidraw:load', {
-              detail: { fileId: 0, sceneData: { elements: [], appState: {} } }
-            }));
-          }
-          // Auto-select first file if none selected
-          if (allFiles.length > 0 && !currentFileId) {
-            selectFile(allFiles[0].id);
-          }
-        } else {
-          document.getElementById('file-list').innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--color-base-content);opacity:0.3;font-size:0.8125rem">加载失败</div>';
-        }
+        var db = await openDB();
+        var tx = db.transaction('handles', 'readwrite');
+        tx.objectStore('handles').put({ id: dirId, handle: handle, name: name });
+        await new Promise(function(r) { tx.oncomplete = r; });
+        return true;
       } catch (e) {
-        document.getElementById('file-list').innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--color-base-content);opacity:0.3;font-size:0.8125rem">网络错误</div>';
+        console.warn('IndexedDB save failed:', e);
+        return false;
       }
     }
 
-    // Auto-discovery: poll for new files every 10 seconds
-    function startDiscovery() {
-      if (discoveryTimer) clearInterval(discoveryTimer);
-      discoveryTimer = setInterval(function() {
-        fetch(API, { headers: ah() }).then(r => r.json()).then(data => {
-          if (data.code === 0) {
-            const prevIds = new Set(allFiles.map(f => f.id));
-            var foundNew = false;
-            data.data.forEach(function(f) {
-              if (!prevIds.has(f.id)) foundNew = true;
-            });
-            if (foundNew) {
-              allFiles = data.data;
-              renderFiles();
-              toast('info', '发现新的画板文件');
-            }
-          }
-        }).catch(function(){});
-      }, 10000);
+    async function removeDirHandleFromDB(dirId) {
+      try {
+        var db = await openDB();
+        var tx = db.transaction('handles', 'readwrite');
+        tx.objectStore('handles').delete(dirId);
+        await new Promise(function(r) { tx.oncomplete = r; });
+      } catch (e) {}
     }
+
+    async function saveDirHandleNameToDB(dirId, name) {
+      try {
+        var db = await openDB();
+        var tx = db.transaction('handles', 'readwrite');
+        var store = tx.objectStore('handles');
+        var req = store.get(dirId);
+        req.onsuccess = function() {
+          var data = req.result;
+          if (data) {
+            data.name = name;
+            store.put(data);
+          }
+        };
+        await new Promise(function(r) { tx.oncomplete = r; });
+      } catch (e) {}
+    }
+
+    async function loadAllDirHandles() {
+      try {
+        var db = await openDB();
+        var tx = db.transaction('handles', 'readonly');
+        var store = tx.objectStore('handles');
+        return await new Promise(function(r) {
+          var req = store.getAll();
+          req.onsuccess = function() { r(req.result || []); };
+        });
+      } catch (e) { return []; }
+    }
+
+    // --- App state persistence (localStorage) ---
+
+    function saveAppState() {
+      try {
+        var toggle = document.getElementById('sidebar-drawer');
+        var state = {
+          activeFileId: activeFileId || null,
+          expandedDirs: dirs.filter(function(d) { return d.expanded; }).map(function(d) { return d.id; }),
+          sidebarVisible: toggle ? toggle.checked : (window.innerWidth >= 1024),
+        };
+        localStorage.setItem('yooexcalidraw_state', JSON.stringify(state));
+      } catch (e) {}
+    }
+
+    function loadAppState() {
+      try {
+        var raw = localStorage.getItem('yooexcalidraw_state');
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return { activeFileId: null, expandedDirs: [] };
+    }
+
+    // --- Directory management ---
 
     function renderFiles() {
       var container = document.getElementById('file-list');
-      if (allFiles.length === 0) {
+      if (dirs.length === 0) {
         container.innerHTML =
-          '<div style="display:flex;flex-direction:column;align-items:center;padding:40px 12px;color:var(--color-base-content);opacity:0.3;font-size:0.8125rem;text-align:center;gap:8px">' +
-          '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="width:32px;height:32px"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>' +
-          '<span>还没有画板文件</span></div>';
+          '<div id="folder-prompt" class="open-folder-prompt">' +
+          '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>' +
+          '<span>打开一个文件夹</span>' +
+          '<button class="btn-primary" onclick="addDirectory()">' +
+          '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>' +
+          ' 选择文件夹</button></div>';
         return;
       }
-      container.innerHTML = allFiles.map(function(f) {
-        var active = f.id === currentFileId ? ' active' : '';
-        var icon = active ? '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>'
-          : '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>';
-        var safeId = escapeHtml(String(f.id));
-        var safeName = escapeHtml(f.name);
-        return '<div class="excal-file-item' + active + '" data-id="' + safeId + '" onclick="selectFile(\'' + safeId + '\')">' +
-          '<span class="file-icon">' + icon + '</span>' +
-          '<span class="file-name">' + safeName + '</span>' +
-          '<span class="file-actions">' +
-          '<button class="file-action-btn" onclick="event.stopPropagation();startRename(\'' + safeId + '\')" title="重命名">✎</button>' +
-          '<button class="file-action-btn danger" onclick="event.stopPropagation();deleteFile(\'' + safeId + '\')" title="删除">✕</button>' +
-          '</span></div>';
-      }).join('');
+      var html = '';
+      for (var di = 0; di < dirs.length; di++) {
+        html += renderDir(dirs[di]);
+      }
+      container.innerHTML = html;
     }
 
-    async function createFile() {
-      try {
-        var now = new Date();
-        var defaultName = '未命名 ' + (now.getMonth() + 1) + '/' + now.getDate() + ' ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0') + '.' + String(now.getMilliseconds()).padStart(3, '0');
-        const res = await fetch(API, {
-          method: 'POST', headers: jh(),
-          body: JSON.stringify({ name: defaultName }),
-        });
-        const data = await res.json();
-        if (data.code === 0) {
-          toast('success', '已创建新画板');
-          await loadFiles();
-          selectFile(data.data.id);
-        } else {
-          toast('error', data.msg || '创建失败');
+    function renderDir(dir) {
+      var arrow = dir.expanded ? '\u25bc' : '\u25b6';
+      var folderIcon = '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>';
+      var addIcon = '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>';
+      var header =
+        '<div class="dir-section">' +
+        '<div class="dir-header" onclick="toggleDir(\'' + dir.id + '\')">' +
+        '<span class="dir-arrow">' + arrow + '</span>' +
+        '<span class="dir-icon">' + folderIcon + '</span>' +
+        '<span class="dir-label">' + escapeHtml(dir.name) + '</span>' +
+        '<span class="dir-add-btn" onclick="event.stopPropagation();createFileInDirById(\'' + dir.id + '\')" title="新建画板">' + addIcon + '</span>' +
+        '<span class="dir-close-btn" onclick="event.stopPropagation();removeDirFromSidebar(\'' + dir.id + '\')" title="移除目录">✕</span>' +
+        '</div>';
+      if (!dir.expanded) return header + '</div>';
+
+      var filesHtml = '';
+      if (dir.files.length === 0) {
+        filesHtml = '<div class="dir-empty">该目录下没有画板文件</div>';
+      } else {
+        for (var fi = 0; fi < dir.files.length; fi++) {
+          var f = dir.files[fi];
+          var active = f.id === activeFileId ? ' active' : '';
+          var safeName = escapeHtml(f.name);
+          var fileIcon = f.id === activeFileId
+            ? '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0;opacity:0.7"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>'
+            : '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;flex-shrink:0;opacity:0.4"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>';
+          filesHtml +=
+            '<div class="excal-file-item' + active + '" data-id="' + f.id + '" onclick="selectFile(\'' + f.id + '\')">' +
+            fileIcon +
+            '<span class="file-name">' + safeName + '</span>' +
+            '<span class="file-actions">' +
+            '<button class="file-action-btn" onclick="event.stopPropagation();startRename(\'' + f.id + '\')" title="重命名">✎</button>' +
+            '<button class="file-action-btn danger" onclick="event.stopPropagation();deleteFile(\'' + f.id + '\')" title="删除">✕</button>' +
+            '</span></div>';
         }
+      }
+      return header + '<div class="dir-files">' + filesHtml + '</div></div>';
+    }
+
+    function toggleDir(dirId) {
+      var dir = getDirById(dirId);
+      if (!dir) return;
+      if (!dir.expanded) {
+        dir.expanded = true;
+        renderFiles();
+        saveAppState();
+        requestDirAccess(dir);
+      } else {
+        dir.expanded = false;
+        renderFiles();
+        saveAppState();
+      }
+    }
+
+    async function requestDirAccess(dir) {
+      try {
+        var perm = await dir.handle.queryPermission({ mode: 'read' });
+        if (perm !== 'granted') {
+          perm = await dir.handle.requestPermission({ mode: 'read' });
+        }
+        if (perm === 'granted' && dir.files.length === 0) {
+          await scanDirFiles(dir);
+          renderFiles();
+          saveAppState();
+        }
+      } catch (e) {}
+    }
+
+    async function addDirectory() {
+      if (!('showDirectoryPicker' in window)) {
+        toast('error', '您的浏览器不支持 File System Access API。请使用 Chrome 或 Edge。');
+        return;
+      }
+      var handle;
+      try {
+        handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      } catch (e) {
+        if (e.name !== 'AbortError') toast('error', '选择文件夹失败');
+        return;
+      }
+      for (var i = 0; i < dirs.length; i++) {
+        if (await isSameDirectory(dirs[i].handle, handle)) {
+          toast('info', '目录「' + handle.name + '」已经添加过了');
+          return;
+        }
+      }
+      var dirId = 'd' + (nextDirId++);
+      var dir = {
+        id: dirId,
+        handle: handle,
+        name: handle.name,
+        files: [],
+        expanded: true,
+      };
+      dirs.push(dir);
+      await persistDirHandle(dirId, handle, handle.name);
+      await scanDirFiles(dir);
+      renderFiles();
+      saveAppState();
+      if (dir.files.length > 0 && !activeFileId) {
+        selectFile(dir.files[0].id);
+      }
+      toast('success', '已添加目录「' + handle.name + '」');
+      renderDirListManage();
+    }
+
+    function removeDirFromSidebar(dirId) {
+      if (confirm('确定要移除目录吗？（不会删除本地文件）')) {
+        removeDirectory(dirId);
+      }
+    }
+
+    async function removeDirectory(dirId) {
+      var dir = getDirById(dirId);
+      if (!dir) return;
+      if (activeFileId && activeFileId.indexOf(dirId + '::') === 0) {
+        activeFileId = null;
+        activeFileHandle = null;
+        hasUnsavedChanges = false;
+        setCurrentFileName(null);
+        setSaveStatus('hidden');
+        document.getElementById('editor-empty-state').style.display = '';
+        window.dispatchEvent(new CustomEvent('excalidraw:load', {
+          detail: { fileId: 0, sceneData: { elements: [], appState: {} } }
+        }));
+      }
+      dirs = dirs.filter(function(d) { return d.id !== dirId; });
+      await removeDirHandleFromDB(dirId);
+      renderFiles();
+      saveAppState();
+      renderDirListManage();
+    }
+
+    async function scanDirFiles(dir) {
+      dir.files = [];
+      try {
+        var perm = await dir.handle.queryPermission({ mode: 'read' });
+        if (perm !== 'granted') {
+          perm = await dir.handle.requestPermission({ mode: 'read' });
+        }
+        if (perm !== 'granted') return;
+        for await (var entry of dir.handle.values()) {
+          if (entry.kind === 'file' && entry.name.endsWith('.excalidraw')) {
+            dir.files.push({
+              id: dir.id + '::' + entry.name,
+              name: entry.name.replace(/\.excalidraw$/, ''),
+              filename: entry.name,
+              dirId: dir.id,
+              handle: entry,
+            });
+          }
+        }
+        dir.files.sort(function(a, b) { return b.name.localeCompare(a.name); });
+      } catch (e) {
+        console.warn('Failed to scan directory', dir.name, e);
+      }
+    }
+
+    // --- File operations ---
+
+    async function readFile(handle) {
+      try {
+        var file = await handle.getFile();
+        var text = await file.text();
+        return JSON.parse(text);
+      } catch (e) {
+        return { elements: [], appState: {} };
+      }
+    }
+
+    async function writeFile(handle, content) {
+      try {
+        var writable = await handle.createWritable();
+        await writable.write(JSON.stringify(content, null, 2));
+        await writable.close();
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function buildExcalidrawContent(elements, appState, files) {
+      return {
+        type: 'excalidraw',
+        version: 2,
+        source: 'https://excalidraw.com',
+        elements: elements || [],
+        appState: appState ? {
+          ...(appState.viewBackgroundColor != null ? { viewBackgroundColor: appState.viewBackgroundColor } : {}),
+          ...(appState.gridSize != null ? { gridSize: appState.gridSize } : {}),
+        } : {},
+        files: files || {},
+      };
+    }
+
+    async function selectFile(fileId) {
+      if (fileId === activeFileId) return;
+      if (activeFileId) {
+        window.dispatchEvent(new CustomEvent('excalidraw:save-now'));
+      }
+
+      var file = getFileById(fileId);
+      if (!file) return;
+
+      activeFileId = fileId;
+      activeFileHandle = file.handle;
+      renderFiles();
+      setCurrentFileName(file.name);
+      setSaveStatus('saved');
+      document.getElementById('editor-empty-state').style.display = 'none';
+      saveAppState();
+
+      var sceneData = await readFile(file.handle);
+      hasUnsavedChanges = false;
+      window.dispatchEvent(new CustomEvent('excalidraw:load', {
+        detail: { fileId: fileId, sceneData: sceneData }
+      }));
+    }
+
+    async function createFileInDirById(dirId) {
+      var dir = getDirById(dirId);
+      if (!dir) return;
+
+      var now = new Date();
+      var defaultName = '未命名 ' + (now.getMonth() + 1) + '/' + now.getDate() + ' ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0') + '.' + String(now.getMilliseconds()).padStart(3, '0');
+      var filename = defaultName.replace(/[<>:"/\\|?*]/g, '_').trim() || 'untitled';
+      var fullName = filename + '.excalidraw';
+
+      var counter = 1;
+      var uniqueName = fullName;
+      while (true) {
+        var exists = false;
+        for await (var entry of dir.handle.values()) {
+          if (entry.kind === 'file' && entry.name === uniqueName) { exists = true; break; }
+        }
+        if (!exists) break;
+        uniqueName = filename + ' (' + counter + ').excalidraw';
+        counter++;
+      }
+
+      try {
+        var newHandle = await dir.handle.getFileHandle(uniqueName, { create: true });
+        var content = buildExcalidrawContent([], {});
+        await writeFile(newHandle, content);
+        toast('success', '已创建新画板');
+        dir.expanded = true;
+        await scanDirFiles(dir);
+        renderFiles();
+        saveAppState();
+        selectFile(dir.id + '::' + uniqueName);
       } catch (e) {
         toast('error', '创建失败');
       }
     }
 
-    async function selectFile(id) {
-      if (id === currentFileId) return;
-      if (currentFileId) await doSaveCurrent();
-      currentFileId = id;
-      renderFiles();
-      var f = allFiles.find(function(f) { return f.id === id; });
-      if (f) setCurrentFileName(f.name);
-      document.getElementById('editor-empty-state').style.display = 'none';
-      setSaveStatus('saved');
-      try {
-        const res = await fetch(API + '/' + encodeURIComponent(id), { headers: ah() });
-        const data = await res.json();
-        if (data.code === 0) {
-          var sceneData = {};
-          try { sceneData = JSON.parse(data.data.scene_data || '{}'); } catch(e) {}
-          if (!sceneData.elements) sceneData = { elements: [], appState: sceneData.appState || {} };
-          window.dispatchEvent(new CustomEvent('excalidraw:load', {
-            detail: { fileId: id, sceneData: sceneData }
-          }));
-        }
-      } catch (e) {
-        toast('error', '加载文件失败');
+    async function createFile() {
+      if (dirs.length === 0) {
+        toast('warning', '请先添加一个目录');
+        return;
+      }
+      var dir = dirs[0];
+      if (activeFileId) {
+        var activeDir = getFileDir(activeFileId);
+        if (activeDir) dir = activeDir;
+      }
+      await createFileInDirById(dir.id);
+    }
+
+    async function doWrite(id, handle, sceneData) {
+      var parsed = typeof sceneData === 'string' ? JSON.parse(sceneData) : sceneData;
+      var content = buildExcalidrawContent(parsed.elements, parsed.appState, parsed.files);
+      var ok = await writeFile(handle, content);
+      if (ok) {
+        hasUnsavedChanges = false;
+        setSaveStatus('saved');
+      } else {
+        setSaveStatus('unsaved');
       }
     }
 
-    async function doSaveCurrent() {
-      return new Promise(function(resolve) {
-        if (!currentFileId) { resolve(); return; }
-        window.dispatchEvent(new CustomEvent('excalidraw:save-now'));
-        var saved = saveQueue[currentFileId];
-        if (saved) {
-          var id = currentFileId;
-          doApiSave(id, saved).then(resolve);
-        } else {
-          resolve();
+    async function renameFile(fileId, newName) {
+      var file = getFileById(fileId);
+      if (!file) return;
+      var dir = getDirById(file.dirId);
+      if (!dir) return;
+
+      var sanitized = newName.replace(/[<>:"/\\|?*]/g, '_').trim() || 'untitled';
+      var newFilename = sanitized + '.excalidraw';
+
+      var counter = 1;
+      var uniqueFilename = newFilename;
+      while (true) {
+        if (uniqueFilename === file.filename) break;
+        var exists = false;
+        for await (var entry of dir.handle.values()) {
+          if (entry.kind === 'file' && entry.name === uniqueFilename) { exists = true; break; }
         }
-      });
-    }
+        if (!exists) break;
+        uniqueFilename = sanitized + ' (' + counter + ').excalidraw';
+        counter++;
+      }
 
-    async function doApiSave(id, sceneDataStr) {
-      try {
-        await fetch(API + '/' + encodeURIComponent(id), {
-          method: 'PUT', headers: jh(),
-          body: JSON.stringify({ scene_data: sceneDataStr }),
-        });
-      } catch (e) {}
-    }
+      if (uniqueFilename === file.filename) {
+        renderFiles();
+        return;
+      }
 
-    async function deleteFile(id) {
-      var f = allFiles.find(function(f) { return f.id === id; });
-      if (!f) return;
-      if (!confirm('确定删除「' + f.name + '」吗？此操作不可恢复。')) return;
       try {
-        const res = await fetch(API + '/' + encodeURIComponent(id), {
-          method: 'DELETE', headers: jh(),
-        });
-        const data = await res.json();
-        if (data.code === 0) {
-          toast('success', '已删除');
-          if (currentFileId === id) {
-            currentFileId = null;
-            setCurrentFileName(null);
-            setSaveStatus('hidden');
-            document.getElementById('editor-empty-state').style.display = '';
-            window.dispatchEvent(new CustomEvent('excalidraw:load', {
-              detail: { fileId: 0, sceneData: { elements: [], appState: {} } }
-            }));
+        if (activeFileId === fileId && hasUnsavedChanges) {
+          if (settings.autoSave) {
+            window.dispatchEvent(new CustomEvent('excalidraw:save-now'));
+            await new Promise(function(r) { setTimeout(r, 50); });
           }
-          await loadFiles();
-        } else {
-          toast('error', data.msg || '删除失败');
         }
+
+        var newHandle;
+        if (file.handle.move) {
+          await file.handle.move(uniqueFilename);
+          newHandle = file.handle;
+        } else {
+          var contentOld = await readFile(file.handle);
+          newHandle = await dir.handle.getFileHandle(uniqueFilename, { create: true });
+          await writeFile(newHandle, contentOld);
+          await dir.handle.removeEntry(file.filename);
+        }
+
+        if (activeFileId === fileId) {
+          activeFileId = dir.id + '::' + uniqueFilename;
+          activeFileHandle = newHandle;
+          setCurrentFileName(sanitized);
+        }
+        await scanDirFiles(dir);
+        renderFiles();
+        saveAppState();
+        toast('success', '已重命名');
       } catch (e) {
-        toast('error', '删除失败');
+        toast('error', '重命名失败');
       }
     }
 
-    function startRename(id) {
-      var f = allFiles.find(function(f) { return f.id === id; });
-      if (!f) return;
-      var el = document.querySelector('.excal-file-item[data-id="' + escapeHtml(String(id)) + '"] .file-name');
+    function startRename(fileId) {
+      var file = getFileById(fileId);
+      if (!file) return;
+      var el = document.querySelector('.excal-file-item[data-id="' + escapeHtml(fileId) + '"] .file-name');
       if (!el) return;
-      var oldName = f.name;
+      var oldName = file.name;
       el.innerHTML = '<input type="text" class="file-name-input" value="' + escapeHtml(oldName) + '" autofocus />';
       var input = el.querySelector('input');
       input.select();
       function done() {
         var newName = input.value.trim() || oldName;
-        renameFile(id, newName);
+        renameFile(fileId, newName);
       }
       input.addEventListener('blur', done);
       input.addEventListener('keydown', function(e) {
@@ -541,119 +960,488 @@ export const prerender = false;
       });
     }
 
-    async function renameFile(id, name) {
+    function startRenameNavbar() {
+      if (!activeFileId) return;
+      var file = getFileById(activeFileId);
+      if (!file) return;
+      var el = document.getElementById('current-filename');
+      if (!el) return;
+      if (el.querySelector('input')) return;
+      var oldName = file.name;
+      el.innerHTML = '<input type="text" class="file-name-input-inline" value="' + escapeHtml(oldName) + '" autofocus />';
+      var input = el.querySelector('input');
+      input.select();
+      function done() {
+        var newName = input.value.trim() || oldName;
+        renameFile(activeFileId, newName);
+      }
+      input.addEventListener('blur', done);
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { input.blur(); }
+        if (e.key === 'Escape') { input.value = oldName; input.blur(); }
+      });
+    }
+
+    async function deleteFile(fileId) {
+      var file = getFileById(fileId);
+      if (!file) return;
+      var dir = getDirById(file.dirId);
+      if (!dir) return;
+      if (!confirm('确定删除「' + file.name + '」吗？此操作不可恢复。')) return;
       try {
-        const res = await fetch(API + '/' + encodeURIComponent(id), {
-          method: 'PUT', headers: jh(),
-          body: JSON.stringify({ name: name }),
-        });
-        const data = await res.json();
-        if (data.code === 0) {
-          if (currentFileId === id) {
-            currentFileId = data.data.id;
-            setCurrentFileName(data.data.name);
-          }
-          await loadFiles();
-          toast('success', '已重命名');
-        } else {
-          toast('error', data.msg || '重命名失败');
+        await dir.handle.removeEntry(file.filename);
+        toast('success', '已删除');
+        if (activeFileId === fileId) {
+          activeFileId = null;
+          activeFileHandle = null;
+          hasUnsavedChanges = false;
+          setCurrentFileName(null);
+          setSaveStatus('hidden');
+          document.getElementById('editor-empty-state').style.display = '';
+          window.dispatchEvent(new CustomEvent('excalidraw:load', {
+            detail: { fileId: 0, sceneData: { elements: [], appState: {} } }
+          }));
         }
+        await scanDirFiles(dir);
+        renderFiles();
+        saveAppState();
       } catch (e) {
-        toast('error', '重命名失败');
+        toast('error', '删除失败');
       }
     }
 
     async function exportFile() {
-      if (!currentFileId) { toast('warning', '请先选择一个画板'); return; }
-      var f = allFiles.find(function(f) { return f.id === currentFileId; });
-      if (!f) return;
+      if (!activeFileHandle) { toast('warning', '请先选择一个画板'); return; }
+      var file = getFileById(activeFileId);
+      if (!file) return;
       try {
-        const res = await fetch(API + '/' + encodeURIComponent(currentFileId), { headers: ah() });
-        const data = await res.json();
-        if (data.code === 0) {
-          var sceneData = data.data.scene_data;
-          var blob = new Blob([sceneData], { type: 'application/json' });
-          var url = URL.createObjectURL(blob);
-          var a = document.createElement('a');
-          a.href = url;
-          a.download = (f.name || 'drawing') + '.excalidraw';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          toast('success', '已导出');
-        }
+        var sceneData = await readFile(activeFileHandle);
+        var content = JSON.stringify(sceneData, null, 2);
+        var blob = new Blob([content], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = file.name + '.excalidraw';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast('success', '已导出');
       } catch (e) {
         toast('error', '导出失败');
       }
     }
 
-    // Save status
-    function setSaveStatus(state) {
-      var el = document.getElementById('save-status');
-      if (!el) return;
-      if (state === 'hidden') { el.style.display = 'none'; return; }
-      el.style.display = 'flex';
-      el.className = 'excal-save-status status-' + state;
-      var textEl = el.querySelector('.status-text');
-      if (state === 'saved') textEl.textContent = '已保存';
-      else if (state === 'saving') textEl.textContent = '保存中...';
-      else if (state === 'unsaved') textEl.textContent = '有修改';
-    }
+    // --- Auto-save events ---
 
-    // Auto-save listener
     window.addEventListener('excalidraw:autosave', function(e) {
       var detail = e.detail;
-      if (!detail.fileId) return;
-      saveQueue[detail.fileId] = detail.sceneData;
+      if (!detail.fileId || !activeFileHandle || detail.fileId !== activeFileId) return;
       setSaveStatus('saving');
-      if (detail.immediate) {
-        doApiSave(detail.fileId, detail.sceneData).then(function() {
-          delete saveQueue[detail.fileId];
-          setSaveStatus('saved');
-        });
-      } else {
-        doApiSave(detail.fileId, detail.sceneData).then(function() {
-          delete saveQueue[detail.fileId];
-          setSaveStatus('saved');
-        });
-      }
+      doWrite(detail.fileId, activeFileHandle, detail.sceneData);
     });
 
     window.addEventListener('excalidraw:dirty', function() {
-      if (currentFileId) setSaveStatus('unsaved');
-    });
-
-    // Profile dropdown
-    document.addEventListener('DOMContentLoaded', function() {
-      var username = localStorage.getItem('excalidraw_username') || '用户';
-      var initial = username.charAt(0).toUpperCase();
-      document.querySelectorAll('#header-avatar, #dropdown-avatar').forEach(function(el) { el.textContent = initial; });
-      document.querySelectorAll('#header-name, #dropdown-name').forEach(function(el) { el.textContent = username; });
-
-      var profileBtn = document.getElementById('user-profile-btn');
-      var dropdown = document.getElementById('user-dropdown');
-      if (profileBtn && dropdown) {
-        profileBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          dropdown.classList.toggle('show');
-        });
-        document.addEventListener('click', function() {
-          dropdown.classList.remove('show');
-        });
+      if (activeFileId) {
+        hasUnsavedChanges = true;
+        setSaveStatus('unsaved');
       }
     });
 
-    // Initialize
-    (async function init() {
-      if (!t()) { window.location.href = '/login'; return; }
+    window.addEventListener('beforeunload', function(e) {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+
+    // --- Settings ---
+
+    function loadSettings() {
       try {
-        const res = await fetch(API, { headers: ah() });
-        if (res.status === 401) { handleLogout(); return; }
-      } catch(e) {}
-      await loadFiles();
-      startDiscovery();
-    })();
+        var raw = localStorage.getItem('yooexcalidraw_settings');
+        if (raw) {
+          var s = JSON.parse(raw);
+          if (typeof s.autoSave === 'boolean') settings.autoSave = s.autoSave;
+          if (s.theme === 'auto' || s.theme === 'light' || s.theme === 'dark') settings.theme = s.theme;
+        }
+      } catch (e) {}
+    }
+
+    function saveSettings() {
+      localStorage.setItem('yooexcalidraw_settings', JSON.stringify(settings));
+    }
+
+    function getEffectiveTheme() {
+      if (settings.theme !== 'auto') return settings.theme;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    function applyTheme() {
+      var effective = getEffectiveTheme();
+      document.documentElement.setAttribute('data-theme', effective);
+      window.dispatchEvent(new CustomEvent('excalidraw:theme-changed', {
+        detail: { theme: effective }
+      }));
+      updateThemeIcon();
+    }
+
+    function updateThemeIcon() {
+      var autoIcon = document.getElementById('theme-icon-auto');
+      var lightIcon = document.getElementById('theme-icon-light');
+      var darkIcon = document.getElementById('theme-icon-dark');
+      if (autoIcon) autoIcon.style.display = settings.theme === 'auto' ? '' : 'none';
+      if (lightIcon) lightIcon.style.display = settings.theme === 'light' ? '' : 'none';
+      if (darkIcon) darkIcon.style.display = settings.theme === 'dark' ? '' : 'none';
+    }
+
+    function cycleTheme() {
+      var order = ['auto', 'light', 'dark'];
+      var idx = order.indexOf(settings.theme);
+      if (idx === -1) idx = 0;
+      settings.theme = order[(idx + 1) % order.length];
+      saveSettings();
+      applyTheme();
+    }
+
+    function toggleAutoSave(enabled) {
+      settings.autoSave = enabled;
+      saveSettings();
+      window.dispatchEvent(new CustomEvent('excalidraw:settings-changed', {
+        detail: { autoSave: enabled }
+      }));
+      updateSaveBtn();
+    }
+
+    function updateSaveBtn() {
+      var btn = document.getElementById('save-btn');
+      if (!btn) return;
+      btn.style.display = settings.autoSave ? 'none' : '';
+    }
+
+    function openManageDialog() {
+      var dialog = document.getElementById('manage-dialog');
+      if (!dialog) return;
+      updateCurrentFilePath();
+      renderDirListManage();
+      dialog.showModal();
+    }
+
+    function closeManageDialog() {
+      var dialog = document.getElementById('manage-dialog');
+      if (dialog) dialog.close();
+    }
+
+    function updateCurrentFilePath() {
+      var el = document.getElementById('current-file-path');
+      if (!el) return;
+      if (!activeFileId || !activeFileHandle) {
+        el.textContent = '未选择文件';
+        return;
+      }
+      var dir = getFileDir(activeFileId);
+      var file = getFileById(activeFileId);
+      if (dir && file) {
+        el.textContent = dir.name + ' / ' + file.filename;
+      } else {
+        el.textContent = '未知路径';
+      }
+    }
+
+    function renderDirListManage() {
+      var el = document.getElementById('dir-list-manage');
+      if (!el) return;
+      if (dirs.length === 0) {
+        el.innerHTML = '<div style="font-size:0.8125rem;opacity:0.4;padding:4px 0">暂无目录</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < dirs.length; i++) {
+        var d = dirs[i];
+        html += '<div class="manage-dir-item">' +
+          '<span class="dir-name">' + escapeHtml(d.name) + '</span>' +
+          '<span class="dir-actions">' +
+            '<button onclick="openDirectoryLocation(\'' + d.id + '\')" title="在文件选择器中打开">' +
+              '<svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>' +
+            '</button>' +
+            '<button class="danger" onclick="removeDirConfirm(\'' + d.id + '\')" title="移除">' +
+              '<svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>' +
+            '</button>' +
+          '</span>' +
+        '</div>';
+      }
+      el.innerHTML = html;
+    }
+
+    async function openDirectoryLocation(dirId) {
+      var dir = getDirById(dirId);
+      if (!dir) return;
+      try {
+        await window.showDirectoryPicker({ startIn: dir.handle });
+      } catch (e) {
+        if (e.name !== 'AbortError') toast('error', '打开目录失败');
+      }
+    }
+
+    async function openFileLocation() {
+      if (!activeFileHandle) {
+        toast('warning', '请先选择一个文件');
+        return;
+      }
+      if (!('showOpenFilePicker' in window)) {
+        toast('error', '您的浏览器不支持该操作');
+        return;
+      }
+      try {
+        await window.showOpenFilePicker({ startIn: activeFileHandle });
+      } catch (e) {
+        if (e.name !== 'AbortError') toast('error', '定位失败');
+      }
+    }
+
+    function removeDirConfirm(dirId) {
+      if (confirm('确定要移除目录吗？（不会删除本地文件）')) {
+        removeDirectory(dirId);
+        renderDirListManage();
+      }
+    }
+
+    function saveCurrentFile() {
+      if (!activeFileId) { toast('warning', '请先选择一个画板'); return; }
+      window.dispatchEvent(new CustomEvent('excalidraw:save-now'));
+    }
+
+    function initSettingsUI() {
+      var checkbox = document.getElementById('auto-save-toggle');
+      if (checkbox) checkbox.checked = settings.autoSave;
+    }
+
+    // --- Drag & Drop ---
+
+    function setupDragDrop(containerId) {
+      var container = document.getElementById(containerId);
+      if (!container) return;
+
+      container.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        container.classList.add('drag-over');
+      });
+
+      container.addEventListener('dragleave', function(e) {
+        container.classList.remove('drag-over');
+      });
+
+      container.addEventListener('drop', async function(e) {
+        e.preventDefault();
+        container.classList.remove('drag-over');
+        if (!('showDirectoryPicker' in window)) {
+          toast('error', '您的浏览器不支持拖放文件夹');
+          return;
+        }
+        var items = e.dataTransfer.items;
+        for (var i = 0; i < items.length; i++) {
+          var item = items[i];
+          if (item.kind !== 'file') continue;
+          try {
+            var handle = await item.getAsFileSystemHandle();
+            if (handle && handle.kind === 'directory') {
+              await addDirectoryFromHandle(handle);
+            }
+          } catch (err) {
+            // ignore
+          }
+        }
+      });
+    }
+
+    async function isSameDirectory(handleA, handleB) {
+      if (handleA === handleB) return true;
+      if (handleA.resolve) {
+        try {
+          var path = await handleA.resolve(handleB);
+          return path !== null && path.length === 0;
+        } catch (e) {}
+      }
+      return handleA.name === handleB.name;
+    }
+
+    async function addDirectoryFromHandle(handle) {
+      for (var i = 0; i < dirs.length; i++) {
+        if (await isSameDirectory(dirs[i].handle, handle)) {
+          toast('info', '目录「' + handle.name + '」已经添加过了');
+          return;
+        }
+      }
+      try {
+        var perm = await handle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') {
+          perm = await handle.requestPermission({ mode: 'readwrite' });
+        }
+        if (perm !== 'granted') {
+          toast('error', '无法获取目录「' + handle.name + '」的读写权限');
+          return;
+        }
+      } catch (e) {
+        toast('error', '获取目录权限失败');
+        return;
+      }
+      var dirId = 'd' + (nextDirId++);
+      var dir = {
+        id: dirId,
+        handle: handle,
+        name: handle.name,
+        files: [],
+        expanded: true,
+      };
+      dirs.push(dir);
+      await persistDirHandle(dirId, handle, handle.name);
+      await scanDirFiles(dir);
+      renderFiles();
+      saveAppState();
+      renderDirListManage();
+      if (dir.files.length > 0 && !activeFileId) {
+        selectFile(dir.files[0].id);
+      }
+      toast('success', '已添加目录「' + handle.name + '」');
+    }
+
+    function initSidebarToggle() {
+      var toggle = document.getElementById('sidebar-drawer');
+      if (!toggle) return;
+      var state = loadAppState();
+      if (typeof state.sidebarVisible === 'boolean') {
+        toggle.checked = state.sidebarVisible;
+      } else {
+        toggle.checked = window.innerWidth >= 1024;
+      }
+    }
+
+    // --- Initialization ---
+
+    async function initApp() {
+      loadSettings();
+      applyTheme();
+      initSettingsUI();
+      updateSaveBtn();
+
+      var savedState = loadAppState();
+      var savedHandles = await loadAllDirHandles();
+      var maxNum = 0;
+
+      for (var i = 0; i < savedHandles.length; i++) {
+        var entry = savedHandles[i];
+        var handle = entry.handle;
+        try {
+          var perm = await handle.queryPermission({ mode: 'read' });
+          if (perm !== 'granted' && perm !== 'prompt') continue;
+          var dir = {
+            id: entry.id,
+            handle: handle,
+            name: entry.name || handle.name,
+            files: [],
+            expanded: savedState.expandedDirs.indexOf(entry.id) !== -1,
+          };
+          dirs.push(dir);
+          var num = parseInt(entry.id.replace('d', ''), 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        } catch (e) {
+          console.warn('Failed to restore directory', entry.name, e);
+        }
+      }
+
+      nextDirId = maxNum + 1;
+
+      for (var j = 0; j < dirs.length; j++) {
+        await scanDirFiles(dirs[j]);
+      }
+
+      renderFiles();
+      initSidebarToggle();
+      var sidebarToggle = document.getElementById('sidebar-drawer');
+      if (sidebarToggle) sidebarToggle.addEventListener('change', saveAppState);
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          var drawerSide = document.querySelector('.drawer-side');
+          if (drawerSide) drawerSide.classList.add('with-transition');
+        });
+      });
+      setupDragDrop('file-list');
+      setupDragDrop('dir-list-drop-zone');
+
+      if (!__excalidrawReady) {
+        await new Promise(function(r) {
+          window.addEventListener('excalidraw:ready', r, { once: true });
+        });
+      }
+
+      if (savedState.activeFileId) {
+        var fileExists = getFileById(savedState.activeFileId);
+        if (fileExists) {
+          await selectFile(savedState.activeFileId);
+          return;
+        }
+      }
+      for (var k = 0; k < dirs.length; k++) {
+        if (dirs[k].files.length > 0) {
+          await selectFile(dirs[k].files[0].id);
+          return;
+        }
+      }
+    }
+
+    initApp();
+
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        e.stopPropagation();
+        saveCurrentFile();
+      }
+    }, { capture: true });
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+      if (settings.theme === 'auto') { applyTheme(); updateThemeIcon(); }
+    });
   </script>
+
+  <dialog class="manage-dialog" id="manage-dialog">
+    <div class="manage-dialog-inner">
+      <h2>设置</h2>
+
+      <div class="manage-section">
+        <h3>自动保存</h3>
+        <label class="settings-label">
+          <input type="checkbox" class="toggle toggle-sm" id="auto-save-toggle" onchange="toggleAutoSave(this.checked)" />
+          <span class="text-sm">自动保存</span>
+        </label>
+      </div>
+
+      <div class="manage-section">
+        <h3>当前文件</h3>
+        <div id="current-file-path" style="font-size:0.8125rem;opacity:0.6;word-break:break-all"></div>
+        <button class="btn-icon" onclick="openFileLocation()" title="在文件管理器中定位" style="margin-top:6px;font-size:0.8125rem;gap:4px">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>
+          在文件管理器中定位
+        </button>
+      </div>
+
+      <div class="manage-section">
+        <h3>目录管理</h3>
+        <div id="dir-list-drop-zone">
+          <div id="dir-list-manage"></div>
+        </div>
+        <button class="btn-primary" onclick="addDirectory()" style="margin-top:8px;padding:4px 12px;font-size:0.8125rem;border:none;border-radius:6px;cursor:pointer">+ 添加目录</button>
+      </div>
+
+      <div class="manage-section" style="font-size:0.75rem;opacity:0.35;display:flex;flex-direction:column;gap:4px">
+        <span>Excalidraw v{excalidrawVersion}</span>
+        <a href="https://github.com/yhui02/YooExcalidraw" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">GitHub 项目地址</a>
+      </div>
+
+      <div class="manage-footer">
+        <button class="manage-close-btn" onclick="closeManageDialog()">关闭</button>
+      </div>
+    </div>
+  </dialog>
 </body>
 </html>
