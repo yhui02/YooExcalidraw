@@ -516,6 +516,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 color: var(--color-base-content);
                 opacity: 0.5;
             }
+            #manage-btn { opacity: 0.6; }
             .btn-icon:hover {
                 opacity: 1;
                 background: var(--color-base-200);
@@ -583,8 +584,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 border: none;
                 border-radius: 12px;
                 padding: 0;
-                width: 420px;
+                width: 480px;
                 max-width: 90vw;
+                max-height: 80vh;
                 box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
                 background: var(--color-base-100);
                 position: fixed;
@@ -592,12 +594,29 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 left: 50%;
                 transform: translate(-50%, -50%);
                 margin: 0;
+                overflow: hidden;
             }
             .manage-dialog::backdrop {
                 background: rgba(0, 0, 0, 0.4);
             }
             .manage-dialog-inner {
-                padding: 24px;
+                display: flex;
+                flex-direction: column;
+                max-height: 80vh;
+            }
+            .manage-dialog-header {
+                padding: 24px 24px 0;
+                flex-shrink: 0;
+            }
+            .manage-dialog-body {
+                padding: 0 24px;
+                overflow-y: auto;
+                flex: 1;
+                min-height: 0;
+            }
+            .manage-dialog-footer {
+                padding: 0 24px 24px;
+                flex-shrink: 0;
             }
             .manage-dialog h2 {
                 font-size: 1rem;
@@ -2237,7 +2256,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
         <dialog class="manage-dialog" id="manage-dialog">
             <div class="manage-dialog-inner">
-                <h2>设置</h2>
+                <div class="manage-dialog-header">
+                    <h2>设置</h2>
+                </div>
+
+                <div class="manage-dialog-body">
 
                 <div
                     style="font-size:0.75rem;opacity:0.8;margin-bottom:16px;line-height:1.5;padding:8px 10px;background:#fef9c3;border-radius:6px;color:#92400e"
@@ -2364,11 +2387,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     >
                 </div>
 
+                </div>
+
+                <div class="manage-dialog-footer">
                 <div class="manage-footer">
                     <button
                         class="manage-close-btn"
                         onclick="closeManageDialog()">关闭</button
                     >
+                </div>
                 </div>
             </div>
         </dialog>
