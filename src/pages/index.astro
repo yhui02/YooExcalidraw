@@ -342,6 +342,25 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     }
     .manage-close-btn:hover { background: var(--color-base-300); }
     .manage-close-btn:active { transform: scale(0.96); }
+
+    .excal-navbar.hidden { display: none; }
+    .float-settings-btn {
+      display: none;
+      position: fixed;
+      bottom: calc(1rem + 40px + 4px);
+      right: 1rem;
+      z-index: 200;
+      width: 40px; height: 40px;
+      border-radius: var(--border-radius-lg, 10px);
+      border: none;
+      cursor: pointer;
+      background-color: var(--color-surface-low, #ececf4);
+      align-items: center; justify-content: center;
+      color: var(--icon-fill-color, #1e1e1e);
+      transition: background-color 0.15s;
+    }
+    .float-settings-btn:hover { background-color: var(--color-surface-high, #f1f0ff); }
+    .float-settings-btn.visible { display: flex; }
   </style>
 </head>
 <body>
@@ -374,6 +393,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             <span>选择一个画板文件开始绘图</span>
           </div>
           <ExcalidrawWrapper client:only="react" />
+          <button id="float-settings-btn" class="float-settings-btn" onclick="openManageDialog()" title="设置">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </button>
         </div>
       </div>
     </div>
@@ -420,7 +442,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     var activeFileId = null;
     var activeFileHandle = null;
     var hasUnsavedChanges = false;
-    var settings = { theme: 'auto', autoSave: false };
+    var settings = { theme: 'auto', autoSave: false, showNavbar: true };
 
     function toast(type, msg) {
       var c = document.getElementById('toast-container');
@@ -1057,6 +1079,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
           var s = JSON.parse(raw);
           if (typeof s.autoSave === 'boolean') settings.autoSave = s.autoSave;
           if (s.theme === 'auto' || s.theme === 'light' || s.theme === 'dark') settings.theme = s.theme;
+          if (typeof s.showNavbar === 'boolean') settings.showNavbar = s.showNavbar;
         }
       } catch (e) {}
     }
@@ -1101,6 +1124,25 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       updateSaveBtn();
     }
 
+    function applyNavbar() {
+      var navbar = document.querySelector('.excal-navbar');
+      var floatBtn = document.getElementById('float-settings-btn');
+      if (!navbar) return;
+      if (settings.showNavbar) {
+        navbar.classList.remove('hidden');
+        if (floatBtn) floatBtn.classList.remove('visible');
+      } else {
+        navbar.classList.add('hidden');
+        if (floatBtn) floatBtn.classList.add('visible');
+      }
+    }
+
+    function toggleNavbar(enabled) {
+      settings.showNavbar = enabled;
+      saveSettings();
+      applyNavbar();
+    }
+
     function updateSaveBtn() {
       var btn = document.getElementById('save-btn');
       if (!btn) return;
@@ -1116,6 +1158,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       for (var i = 0; i < radios.length; i++) {
         radios[i].checked = radios[i].value === settings.theme;
       }
+      var navbarToggle = document.getElementById('navbar-toggle');
+      if (navbarToggle) navbarToggle.checked = settings.showNavbar;
+      var autoSaveToggle = document.getElementById('auto-save-toggle');
+      if (autoSaveToggle) autoSaveToggle.checked = settings.autoSave;
       dialog.showModal();
     }
 
@@ -1206,6 +1252,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     function initSettingsUI() {
       var checkbox = document.getElementById('auto-save-toggle');
       if (checkbox) checkbox.checked = settings.autoSave;
+      var navbarToggle = document.getElementById('navbar-toggle');
+      if (navbarToggle) navbarToggle.checked = settings.showNavbar;
     }
 
     // --- Drag & Drop ---
@@ -1313,6 +1361,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     async function initApp() {
       loadSettings();
       applyTheme();
+      applyNavbar();
       initSettingsUI();
       updateSaveBtn();
 
@@ -1409,6 +1458,14 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         <label class="settings-label">
           <input type="checkbox" class="toggle toggle-sm" id="auto-save-toggle" onchange="toggleAutoSave(this.checked)" />
           <span class="text-sm">自动保存</span>
+        </label>
+      </div>
+
+      <div class="manage-section">
+        <h3>界面</h3>
+        <label class="settings-label">
+          <input type="checkbox" class="toggle toggle-sm" id="navbar-toggle" onchange="toggleNavbar(this.checked)" />
+          <span class="text-sm">显示顶部导航条</span>
         </label>
       </div>
 
