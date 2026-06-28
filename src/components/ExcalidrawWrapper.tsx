@@ -9,6 +9,7 @@ export default function ExcalidrawWrapper() {
   const queuedLoadRef = useRef(null);
   const skipDirtyRef = useRef(false);
   const lastSavedDataRef = useRef(null);
+  const viewportMapRef = useRef({});
   const [ExcalidrawComp, setExcalidrawComp] = useState(null);
   const [theme, setTheme] = useState('light');
   const excRef = useRef(null);
@@ -84,6 +85,17 @@ export default function ExcalidrawWrapper() {
         elements: normalizedElements,
         ...(appStateUpdate ? { appState: appStateUpdate } : {}),
       });
+      // restore per-file viewport
+      var vp = viewportMapRef.current[fileId];
+      if (vp) {
+        excRef.current.updateScene({
+          appState: {
+            scrollX: vp.scrollX,
+            scrollY: vp.scrollY,
+            zoom: vp.zoom,
+          },
+        });
+      }
     } catch (err) {
       console.warn('[ExcalidrawWrapper] loadScene failed:', err);
     }
@@ -107,6 +119,12 @@ export default function ExcalidrawWrapper() {
   const onChange = useCallback((elements, appState, files) => {
     if (!fileIdRef.current) return;
     if (skipDirtyRef.current) return;
+    // save viewport per file
+    viewportMapRef.current[fileIdRef.current] = {
+      scrollX: appState.scrollX,
+      scrollY: appState.scrollY,
+      zoom: appState.zoom,
+    };
     const filteredAppState = {
       ...(appState.viewBackgroundColor != null ? { viewBackgroundColor: appState.viewBackgroundColor } : {}),
       ...(appState.gridSize != null ? { gridSize: appState.gridSize } : {}),
