@@ -2,6 +2,7 @@
 import ExcalidrawWrapper from '@/components/ExcalidrawWrapper.tsx';
 import '@/styles/global.css';
 const excalidrawVersion = '0.18.1';
+const base = '/YooExcalidraw';
 ---
 
 <!doctype html>
@@ -10,7 +11,7 @@ const excalidrawVersion = '0.18.1';
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title id="page-title">YooExcalidraw</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href={base + "/favicon.svg"} />
   <script is:inline>
     (function(){try{var s=JSON.parse(localStorage.getItem('yooexcalidraw_settings')||'{}'),t=s.theme||'auto',e=t==='auto'?(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):t;document.documentElement.setAttribute('data-theme',e)}catch(e){}})();
   </script>
@@ -390,7 +391,7 @@ const excalidrawVersion = '0.18.1';
       <aside class="excal-sidebar">
         <div class="excal-sidebar-header">
           <div style="display:flex;align-items:center;gap:6px;flex:1">
-            <img src="/logo.svg" alt="YooExcalidraw" style="width:20px;height:20px;flex-shrink:0" />
+            <img src={base + "/logo.svg"} alt="YooExcalidraw" style="width:20px;height:20px;flex-shrink:0" />
             <span style="font-weight:700;font-size:0.9375rem;white-space:nowrap">YooExcalidraw</span>
           </div>
           <div style="display:flex;align-items:center;gap:2px">
