@@ -971,11 +971,61 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 __excalidrawReady = true;
             });
 
+            // Access Excalidraw library items via React fiber
+            window.__getExcalidrawLibraryItems = function() {
+                try {
+                    var island = document.querySelector('astro-island');
+                    if (!island) return [];
+                    var key = Object.keys(island).find(function(k) { return k.startsWith('__reactContainer'); });
+                    if (!key) return [];
+                    var fiber = island[key];
+                    function findApp(node, depth) {
+                        if (!node || depth > 60) return null;
+                        if (node.stateNode && node.stateNode.library && node.stateNode.library.currLibraryItems) {
+                            return node.stateNode.library;
+                        }
+                        var result = findApp(node.child, depth + 1);
+                        if (result) return result;
+                        return findApp(node.sibling, depth + 1);
+                    }
+                    var lib = findApp(fiber, 0);
+                    if (!lib) return [];
+                    return lib.currLibraryItems || [];
+                } catch (e) { return []; }
+            };
+
+            window.__setExcalidrawLibraryItems = function(items) {
+                try {
+                    var island = document.querySelector('astro-island');
+                    if (!island) return false;
+                    var key = Object.keys(island).find(function(k) { return k.startsWith('__reactContainer'); });
+                    if (!key) return false;
+                    var fiber = island[key];
+                    function findApp(node, depth) {
+                        if (!node || depth > 60) return null;
+                        if (node.stateNode && node.stateNode.library && node.stateNode.library.currLibraryItems) {
+                            return node.stateNode;
+                        }
+                        var result = findApp(node.child, depth + 1);
+                        if (result) return result;
+                        return findApp(node.sibling, depth + 1);
+                    }
+                    var app = findApp(fiber, 0);
+                    if (!app || !app.library) return false;
+                    app.library.setLibrary(items);
+                    // Trigger React re-render
+                    if (typeof app.forceUpdate === 'function') app.forceUpdate();
+                    currentLibraryItems = items;
+                    return true;
+                } catch (e) { return false; }
+            };
+
             var dirs = [];
             var nextDirId = 1;
             var activeFileId = null;
             var activeFileHandle = null;
             var hasUnsavedChanges = false;
+            var currentLibraryItems = [];
             var settings = { theme: "auto", autoSave: false, showNavbar: true };
 
             function toast(type, msg) {
@@ -1445,7 +1495,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 }
             }
 
-            function buildExcalidrawContent(elements, appState, files) {
+            function buildExcalidrawContent(elements, appState, files, libraryItems) {
                 return {
                     type: "excalidraw",
                     version: 2,
@@ -1465,6 +1515,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                           }
                         : {},
                     files: files || {},
+                    libraryItems: libraryItems || [],
                 };
             }
 
@@ -1489,6 +1540,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 saveAppState();
 
                 var sceneData = await readFile(file.handle);
+                currentLibraryItems = sceneData.libraryItems || [];
                 hasUnsavedChanges = false;
                 window.dispatchEvent(
                     new CustomEvent("excalidraw:load", {
@@ -1577,6 +1629,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     parsed.elements,
                     parsed.appState,
                     parsed.files,
+                    parsed.libraryItems || currentLibraryItems,
                 );
                 var ok = await writeFile(handle, content);
                 if (ok) {
@@ -1802,7 +1855,22 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 )
                     return;
                 setSaveStatus("saving");
-                doWrite(detail.fileId, activeFileHandle, detail.sceneData);
+                // Merge library items from React fiber into scene data
+                var sceneData = typeof detail.sceneData === 'string' ? JSON.parse(detail.sceneData) : detail.sceneData;
+                if (!sceneData.libraryItems || sceneData.libraryItems.length === 0) {
+                    sceneData.libraryItems = window.__getExcalidrawLibraryItems ? window.__getExcalidrawLibraryItems() : currentLibraryItems;
+                }
+                doWrite(detail.fileId, activeFileHandle, sceneData);
+            });
+
+            window.addEventListener("excalidraw:library-change", function (e) {
+                currentLibraryItems = e.detail.libraryItems || [];
+                if (activeFileId && activeFileHandle) {
+                    hasUnsavedChanges = true;
+                    setSaveStatus("unsaved");
+                    // Trigger a save-now so library changes are persisted immediately
+                    window.dispatchEvent(new CustomEvent("excalidraw:save-now"));
+                }
             });
 
             window.addEventListener("excalidraw:dirty", function () {

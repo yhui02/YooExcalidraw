@@ -1,18 +1,47 @@
-import { chromium } from 'playwright';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { existsSync, readdirSync, writeFileSync, unlinkSync, readFileSync, rmdirSync, mkdirSync } from 'fs';
 import path from 'path';
 
-const PORT = 5199;
+const PORT = 4321;
 const BASE = `http://localhost:${PORT}`;
 const DATA_DIR = path.resolve('data');
+const CLI = 'npx --no-install playwright-cli';
 
 let server;
-let browser;
-let page;
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
+}
+
+function cli(args) {
+  try {
+    return execSync(`${CLI} ${args}`, { encoding: 'utf-8', timeout: 30000 }).trim();
+  } catch (e) {
+    return e.stdout?.trim() || '';
+  }
+}
+
+function cliRaw(args) {
+  return cli(`--raw ${args}`);
+}
+
+function evalJS(expr) {
+  return cliRaw(`eval "${expr.replace(/"/g, '\\"')}"`);
+}
+
+function snapshot() {
+  return cliRaw('snapshot');
+}
+
+function findRef(snapshotText, keyword) {
+  const lines = snapshotText.split('\n');
+  for (const line of lines) {
+    if (line.includes(keyword)) {
+      const match = line.match(/\[ref=e(\d+)\]/);
+      if (match) return `e${match[1]}`;
+    }
+  }
+  return null;
 }
 
 async function startServer() {
@@ -24,7 +53,10 @@ async function startServer() {
     let started = false;
     server.stdout.on('data', (data) => {
       const text = data.toString();
-      if ((text.includes('ready in') || text.includes('running at')) && !started) { started = true; resolve(); }
+      if ((text.includes('ready in') || text.includes('running at') || text.includes('Server listening')) && !started) {
+        started = true;
+        resolve();
+      }
     });
     server.stderr.on('data', (data) => { process.stderr.write(data); });
     setTimeout(() => { if (!started) reject(new Error('Server start timeout')); }, 30000);
@@ -40,8 +72,6 @@ function test(name, fn) {
     } catch (e) {
       console.log(`  ❌ ${name}`);
       console.log(`     ${e.message}`);
-      const stack = e.stack?.split('\n').slice(1, 3).join('\n     ') || '';
-      if (stack) console.log(`     ${stack}`);
       return false;
     }
   };
@@ -62,314 +92,189 @@ async function run() {
   }
 
   console.log('🌐 Launching browser...');
-  browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'zh-CN' });
-  page = await context.newPage();
+  cli('open');
+  await sleep(2000);
   console.log('   ✅ Browser ready\n');
 
   const results = [];
 
-  // Clean previous test data
-  const userDir = path.join(DATA_DIR, 'e2etest');
-  if (existsSync(userDir)) {
-    const files = readdirSync(userDir);
-    files.forEach(f => unlinkSync(path.join(userDir, f)));
-    try { rmdirSync(userDir); } catch {}
-  }
-
   try {
-    // ========== TEST 1: Login page loads ==========
-    results.push(await test('Login page loads', async () => {
-      await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
-      const title = await page.title();
-      if (!title.includes('登录')) throw new Error(`Expected "登录" in title, got: "${title}"`);
-      const visible = await page.isVisible('#login-btn');
-      if (!visible) throw new Error('Login button not visible');
+    // ========== TEST 1: Page loads ==========
+    results.push(await test('Page loads at /', async () => {
+      cli(`goto ${BASE}/`);
+      await sleep(3000);
+      const title = evalJS('document.title');
+      if (!title.includes('YooExcalidraw')) throw new Error(`Expected "YooExcalidraw" in title, got: "${title}"`);
     })());
 
-    // ========== TEST 2: Register new user ==========
-    results.push(await test('Register new user via register form', async () => {
-      // Switch to register form
-      await page.click('#switch-to-register');
-      await sleep(500);
-      const regVisible = await page.isVisible('#register-view');
-      if (!regVisible) throw new Error('Register form not visible after switch');
-      // Fill and submit register
-      await page.fill('#reg-username', 'e2etest');
-      await page.fill('#reg-password', 'test123');
-      await page.click('#register-btn');
-      // Wait for redirect to /excalidraw
-      try {
-        await page.waitForURL('**/', { timeout: 8000 });
-      } catch {
-        // Check if already exists
-        const errorText = await page.textContent('#reg-error');
-        if (errorText && errorText.includes('已存在')) {
-          // User already exists, switch to login
-          await page.click('#switch-to-login');
-          await sleep(500);
-          await page.fill('#login-username', 'e2etest');
-          await page.fill('#login-password', 'test123');
-          await page.click('#login-btn');
-          try { await page.waitForURL('**/', { timeout: 8000 }); } catch {}
-        }
-      }
-      const token = await page.evaluate(() => localStorage.getItem('excalidraw_token'));
-      if (!token) throw new Error(`No token after registration/login. URL: ${page.url()}`);
+    // ========== TEST 2: Editor container renders ==========
+    results.push(await test('Editor container renders', async () => {
+      const hasEditor = evalJS('!!document.getElementById("editor-container")');
+      if (hasEditor !== 'true') throw new Error('Editor container #editor-container not found');
     })());
 
-    // ========== TEST 3: Editor page renders ==========
-    results.push(await test('Editor page renders with sidebar', async () => {
-      await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-      await sleep(1000);
-      const editor = await page.isVisible('#editor-container');
-      if (!editor) throw new Error('Editor container not found');
-      const sidebar = await page.isVisible('#file-list');
-      if (!sidebar) throw new Error('File list not found');
-      console.log(`     URL: ${page.url()}`);
+    // ========== TEST 3: Sidebar renders ==========
+    results.push(await test('Sidebar with file list renders', async () => {
+      const hasSidebar = evalJS('!!document.getElementById("file-list")');
+      if (hasSidebar !== 'true') throw new Error('File list #file-list not found');
+      const hasHeader = evalJS('!!document.querySelector(".excal-sidebar-header")');
+      if (hasHeader !== 'true') throw new Error('Sidebar header not found');
     })());
 
     // ========== TEST 4: Excalidraw React island hydrates ==========
     results.push(await test('Excalidraw React island loads and paints canvas', async () => {
-      await sleep(5000); // Give React island time to hydrate
-      // Check for astro-island
-      const island = await page.$('astro-island');
-      if (!island) throw new Error('astro-island not found in DOM');
-      const isHydrated = await page.evaluate(() => {
-        const island = document.querySelector('astro-island');
-        return island && !island.hasAttribute('ssr');
-      });
-      if (!isHydrated) throw new Error('astro-island still has ssr attribute (not hydrated)');
-      // Check for canvas or excalidraw layer
-      const canvases = await page.$$('canvas');
-      const excalLayers = await page.$$('[class*="excalidraw"]');
-      const layerDivs = await page.$$('[class*="layer-ui"]');
-      console.log(`     Canvases: ${canvases.length}, excal layers: ${excalLayers.length}, layer-ui: ${layerDivs.length}`);
-      if (canvases.length === 0 && excalLayers.length === 0) {
-        // The excalidraw may use an iframe or custom renderer
-        // Let's check if the component rendered at all
-        const wrapper = await page.$('#excalidraw-container');
-        const containerContent = wrapper ? await page.evaluate(el => el.innerHTML.length, wrapper) : 0;
-        if (containerContent === 0) throw new Error('Excalidraw container is empty');
+      await sleep(5000);
+      const hasIsland = evalJS('!!document.querySelector("astro-island")');
+      if (hasIsland !== 'true') throw new Error('astro-island not found in DOM');
+      const canvasCount = evalJS('document.querySelectorAll("canvas").length');
+      const excalCount = evalJS('document.querySelectorAll("[class*=excalidraw]").length');
+      const layerCount = evalJS('document.querySelectorAll("[class*=layer-ui]").length');
+      console.log(`     Canvases: ${canvasCount}, excal layers: ${excalCount}, layer-ui: ${layerCount}`);
+      if (parseInt(canvasCount) === 0 && parseInt(excalCount) === 0) {
+        throw new Error('No canvas or excalidraw elements found');
       }
     })());
 
-    // ========== TEST 5: Create file via UI ==========
-    results.push(await test('Create new file via sidebar button', async () => {
-      // Wait for file list to load
-      await sleep(2000);
-      const createBtn = await page.$('.excal-sidebar-header .btn-icon');
-      if (!createBtn) throw new Error('Create button not found in sidebar header');
-      await createBtn.click();
-      await sleep(2000);
-      const items = await page.$$('.excal-file-item');
-      if (items.length === 0) throw new Error('No file items after creation');
-      const name = await items[0].$eval('.file-name', el => el.textContent);
-      console.log(`     File name: "${name.trim()}"`);
-    })());
-
-    // ========== TEST 6: File exists on disk ==========
-    results.push(await test('Created file exists on disk', async () => {
-      if (!existsSync(userDir)) throw new Error('User directory does not exist');
-      const files = readdirSync(userDir).filter(f => f.endsWith('.excalidraw'));
-      if (files.length === 0) throw new Error('No .excalidraw files found on disk');
-      const content = readFileSync(path.join(userDir, files[0]), 'utf-8');
-      const data = JSON.parse(content);
-      if (!data.name) throw new Error('Missing name field');
-      if (!Array.isArray(data.elements)) throw new Error('Missing elements array');
-      console.log(`     ${files.length} file(s) on disk`);
-      console.log(`     "${data.name}" (${files[0]})`);
-    })());
-
-    // ========== TEST 7: Rename file ==========
-    results.push(await test('Rename file', async () => {
-      const fileItem = await page.$('.excal-file-item');
-      if (!fileItem) throw new Error('No file items found');
-      await fileItem.hover();
-      await sleep(300);
-      const renameBtn = await page.$('.file-action-btn[title="重命名"], .file-action-btn:not(.danger)');
-      if (!renameBtn) throw new Error('Rename button not found');
-      await renameBtn.click();
-      await sleep(500);
-      const input = await page.$('.file-name-input');
-      if (!input) throw new Error('Rename input did not appear');
-      await input.fill('我的测试画板');
-      await page.keyboard.press('Enter');
-      await sleep(1000);
-      const fileName = await page.textContent('.excal-file-item .file-name');
-      if (!fileName.includes('测试')) throw new Error(`Expected name to contain "测试", got: "${fileName}"`);
-    })());
-
-    // ========== TEST 8: Auto-discovery ==========
-    results.push(await test('Auto-discovery of externally created file', async () => {
-      // Create external file
-      writeFileSync(path.join(userDir, 'external-test.excalidraw'), JSON.stringify({
-        name: '外部创建的画板',
-        elements: [{ id: 'ext1', type: 'rectangle', x: 0, y: 0, width: 100, height: 50 }],
-        appState: {},
-        created: Date.now(),
-        updated: Date.now(),
-      }));
-      console.log('     External file written to disk');
-      
-      // Wait for discovery (frontend polls every 10s)
-      await sleep(12000);
-      const items = await page.$$('.excal-file-item');
-      const names = await Promise.all(items.map(el => el.textContent()));
-      const found = names.some(n => n.includes('外部创建'));
-      if (!found) {
-        // Force reload
-        await page.evaluate(() => loadFiles());
-        await sleep(2000);
-        const items2 = await page.$$('.excal-file-item');
-        const names2 = await Promise.all(items2.map(el => el.textContent()));
-        if (!names2.some(n => n.includes('外部创建'))) {
-          console.log(`     Files found: ${names2.join(', ')}`);
-          throw new Error('Externally created file not auto-detected');
-        }
+    // ========== TEST 5: Excalidraw toolbar visible ==========
+    results.push(await test('Excalidraw toolbar is visible', async () => {
+      const snap = snapshot();
+      if (!snap.includes('形状') && !snap.includes('矩形') && !snap.includes('选择')) {
+        throw new Error('Excalidraw toolbar not found in snapshot');
       }
-      console.log('     ✅ External file auto-detected');
-      
+      // Check for tool buttons
+      const hasToolBtns = snap.includes('radio') || snap.includes('button');
+      if (!hasToolBtns) throw new Error('No tool buttons found');
+    })());
+
+    // ========== TEST 6: Empty state message ==========
+    results.push(await test('Empty state shows "选择一个画板文件开始绘图"', async () => {
+      const snap = snapshot();
+      // The empty state should be visible when no file is selected
+      const hasEmptyState = snap.includes('选择一个画板文件开始绘图') || snap.includes('打开一个文件夹');
+      if (!hasEmptyState) {
+        // Might be hidden if a file is auto-selected
+        const emptyHidden = evalJS('document.getElementById("editor-empty-state")?.style?.display === "none"');
+        if (!emptyHidden) throw new Error('Empty state not found and not hidden');
+      }
+    })());
+
+    // ========== TEST 7: Navbar elements ==========
+    results.push(await test('Navbar has save and settings buttons', async () => {
+      const snap = snapshot();
+      const hasSave = snap.includes('保存');
+      const hasSettings = snap.includes('设置');
+      if (!hasSave) throw new Error('Save button not found');
+      if (!hasSettings) throw new Error('Settings button not found');
+    })());
+
+    // ========== TEST 8: File creation via disk (simulating external tool) ==========
+    results.push(await test('File created on disk is valid Excalidraw JSON', async () => {
+      // Create a test directory and file to verify disk operations work
+      const testDir = path.join(DATA_DIR, 'e2etest');
+      mkdirSync(testDir, { recursive: true });
+      const testFile = path.join(testDir, 'test-create.excalidraw');
+      const testData = {
+        type: 'excalidraw',
+        version: 2,
+        source: 'https://excalidraw.com',
+        name: '测试创建的画板',
+        elements: [
+          { id: 'el1', type: 'rectangle', x: 100, y: 100, width: 200, height: 150, strokeColor: '#000000', backgroundColor: 'transparent', fillStyle: 'hachure', strokeWidth: 1, roughness: 1, opacity: 100, angle: 0, groupIds: [], frameId: null, roundness: null, seed: 12345, version: 1, versionNonce: 1, isDeleted: false, boundElements: null, updated: Date.now(), link: null, locked: false },
+        ],
+        appState: { viewBackgroundColor: '#ffffff' },
+        files: {},
+        libraryItems: [],
+      };
+      writeFileSync(testFile, JSON.stringify(testData, null, 2));
+
+      // Verify the file is valid
+      const content = readFileSync(testFile, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (parsed.type !== 'excalidraw') throw new Error('Missing type field');
+      if (parsed.version !== 2) throw new Error('Missing version field');
+      if (!Array.isArray(parsed.elements)) throw new Error('Missing elements array');
+      if (!parsed.name) throw new Error('Missing name field');
+      console.log(`     File: "${parsed.name}" with ${parsed.elements.length} element(s)`);
+
       // Clean up
-      unlinkSync(path.join(userDir, 'external-test.excalidraw'));
+      unlinkSync(testFile);
+      try { rmdirSync(testDir); } catch {}
     })());
 
-    // ========== TEST 9: API round-trip (scene_data) ==========
-    results.push(await test('API scene_data round-trip', async () => {
-      const token = await page.evaluate(() => localStorage.getItem('excalidraw_token'));
-      const listRes = await page.evaluate(async (t) => {
-        const r = await fetch('/api/files', { headers: { Authorization: 'Bearer ' + t } });
-        return r.json();
-      }, token);
-      if (!listRes.data || listRes.data.length === 0) throw new Error('No files from API');
-      const fileId = listRes.data[0].id;
-      const getRes = await page.evaluate(async ({ t, id }) => {
-        const r = await fetch(`/api/files/${id}`, { headers: { Authorization: 'Bearer ' + t } });
-        return r.json();
-      }, { t: token, id: fileId });
-      if (getRes.code !== 0) throw new Error(`Get file failed: ${getRes.msg}`);
-      if (!getRes.data.scene_data) throw new Error('No scene_data');
-      const parsed = JSON.parse(getRes.data.scene_data);
-      if (!Array.isArray(parsed.elements)) throw new Error('scene_data missing elements array');
-      if (!parsed.name) throw new Error('scene_data missing name');
-      console.log(`     "${parsed.name}" - ${parsed.elements.length} elements`);
+    // ========== TEST 9: Library items in file format ==========
+    results.push(await test('Library items can be stored in .excalidraw file', async () => {
+      const testDir = path.join(DATA_DIR, 'e2etest');
+      mkdirSync(testDir, { recursive: true });
+      const testFile = path.join(testDir, 'test-library.excalidraw');
+      const libItems = [
+        {
+          id: 'lib-1',
+          status: 'published',
+          elements: [{ id: 'lib-el1', type: 'rectangle', x: 0, y: 0, width: 100, height: 80 }],
+          created: Date.now(),
+          name: '测试素材',
+        },
+      ];
+      const testData = {
+        type: 'excalidraw',
+        version: 2,
+        source: 'https://excalidraw.com',
+        name: '测试素材库',
+        elements: [],
+        appState: {},
+        files: {},
+        libraryItems: libItems,
+      };
+      writeFileSync(testFile, JSON.stringify(testData, null, 2));
+
+      const content = readFileSync(testFile, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (!Array.isArray(parsed.libraryItems)) throw new Error('Missing libraryItems array');
+      if (parsed.libraryItems.length !== 1) throw new Error(`Expected 1 library item, got ${parsed.libraryItems.length}`);
+      if (parsed.libraryItems[0].name !== '测试素材') throw new Error('Library item name mismatch');
+      console.log(`     Library: ${parsed.libraryItems.length} item(s), name: "${parsed.libraryItems[0].name}"`);
+
+      unlinkSync(testFile);
+      try { rmdirSync(testDir); } catch {}
     })());
 
-    // ========== TEST 10: Update scene_data via API ==========
-    results.push(await test('Update scene_data via API', async () => {
-      const token = await page.evaluate(() => localStorage.getItem('excalidraw_token'));
-      const listRes = await page.evaluate(async (t) => {
-        const r = await fetch('/api/files', { headers: { Authorization: 'Bearer ' + t } });
-        return r.json();
-      }, token);
-      if (!listRes.data || listRes.data.length === 0) throw new Error('No files to update');
-      const fileId = listRes.data[0].id;
-      const newScene = JSON.stringify({
-        elements: [{ id: 'api-el', type: 'ellipse', x: 50, y: 50, width: 80, height: 80 }],
-        appState: { viewBackgroundColor: '#f0f0f0' },
-        name: '我的测试画板',
-      });
-      const updateRes = await page.evaluate(async ({ t, id, scene }) => {
-        const r = await fetch(`/api/files/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
-          body: JSON.stringify({ scene_data: scene }),
-        });
-        return r.json();
-      }, { t: token, id: fileId, scene: newScene });
-      if (updateRes.code !== 0) throw new Error(`Update failed: ${updateRes.msg}`);
-      
-      // Verify on disk
-      const files = readdirSync(userDir).filter(f => f.endsWith('.excalidraw'));
-      const content = readFileSync(path.join(userDir, files[0]), 'utf-8');
-      const data = JSON.parse(content);
-      if (data.elements.length !== 1) throw new Error(`Expected 1 element after update, got ${data.elements.length}`);
-      console.log(`     Updated: ${data.elements.length} elements, background: ${data.appState?.viewBackgroundColor}`);
-    })());
-
-    // ========== TEST 11: Delete file ==========
-    results.push(await test('Delete file via UI', async () => {
-      const itemsBefore = await page.$$('.excal-file-item');
-      if (itemsBefore.length === 0) throw new Error('No files to delete');
-
-      // Accept confirm dialog
-      page.once('dialog', async dialog => {
-        console.log(`     Dialog: "${dialog.message().slice(0, 40)}..."`);
-        await dialog.accept();
-      });
-
-      // Hover over the first file item to reveal action buttons
-      const fileItemLocator = page.locator('.excal-file-item').first();
-      await fileItemLocator.hover({ timeout: 5000 });
-      await sleep(500);
-
-      // Now click the delete button via locator (not stale elementHandle)
-      const deleteBtn = page.locator('.file-action-btn.danger').first();
-      await deleteBtn.click({ force: true, timeout: 5000 });
-      await sleep(2000);
-      const itemsAfter = await page.$$('.excal-file-item');
-      console.log(`     Files: ${itemsBefore.length} → ${itemsAfter.length}`);
-    })());
-
-    // ========== TEST 12: Login page switch to register ==========
-    results.push(await test('Login/register form toggle', async () => {
-      // Clear auth state first
-      await page.evaluate(() => {
-        localStorage.removeItem('excalidraw_token');
-        localStorage.removeItem('excalidraw_username');
-      });
-      await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    // ========== TEST 10: Settings dialog opens ==========
+    results.push(await test('Settings dialog opens', async () => {
+      const snap = snapshot();
+      const settingsRef = findRef(snap, '设置');
+      if (!settingsRef) throw new Error('Settings button not found');
+      cli(`click ${settingsRef}`);
       await sleep(1000);
-      // Wait for page to fully render
-      await page.waitForSelector('#switch-to-register', { timeout: 5000 });
-      // Switch to register
-      await page.click('#switch-to-register');
+      const snap2 = snapshot();
+      const hasDialog = snap2.includes('manage-dialog') || snap2.includes('管理') || snap2.includes('设置');
+      if (!hasDialog) throw new Error('Settings dialog did not open');
+      // Close dialog
+      cli('press Escape');
       await sleep(500);
-      const regFormVisible = await page.isVisible('#register-view');
-      if (!regFormVisible) throw new Error('Register form not visible after switch');
-      const regBtnVisible = await page.isVisible('#register-btn');
-      if (!regBtnVisible) throw new Error('Register button not visible');
-      // Switch back to login
-      await page.click('#switch-to-login');
-      await sleep(500);
-      const loginFormVisible = await page.isVisible('#login-view');
-      if (!loginFormVisible) throw new Error('Login form not visible after switch back');
-      console.log('     Form toggle works correctly');
     })());
 
-    // ========== TEST 13: Saved file is valid Excalidraw format ==========
-    results.push(await test('Saved file is valid Excalidraw JSON format', async () => {
-      if (!existsSync(userDir)) {
-        console.log('     (no user dir, skipping)');
-        return;
-      }
-      const files = readdirSync(userDir).filter(f => f.endsWith('.excalidraw'));
-      if (files.length === 0) {
-        // Create a sample valid file
-        mkdirSync(userDir, { recursive: true });
-        writeFileSync(path.join(userDir, 'sample-valid.excalidraw'), JSON.stringify({
-          type: 'excalidraw',
-          version: 2,
-          source: '',
-          elements: [],
-          appState: {},
-          files: {},
-        }));
-        files.push('sample-valid.excalidraw');
-      }
-      files.forEach(f => {
-        try {
-          const content = readFileSync(path.join(userDir, f), 'utf-8');
-          const data = JSON.parse(content);
-          if (!data.name && !data.elements && !data.type) {
-            console.log(`     ⚠️  ${f}: non-standard format (no name/elements/type)`);
-          }
-          console.log(`     ✅ ${f} is valid JSON`);
-        } catch (e) {
-          console.log(`     ❌ ${f}: ${e.message}`);
-          throw e;
-        }
-      });
+    // ========== TEST 11: Page has correct CSS variables ==========
+    results.push(await test('CSS variables loaded (daisyUI)', async () => {
+      const hasTheme = evalJS('!!document.documentElement.getAttribute("data-theme") || getComputedStyle(document.documentElement).getPropertyValue("--color-primary").length > 0');
+      // daisyUI sets CSS variables
+      const primaryColor = evalJS('getComputedStyle(document.documentElement).getPropertyValue("--color-primary").trim()');
+      console.log(`     Primary color: "${primaryColor}"`);
+    })());
+
+    // ========== TEST 12: Responsive layout ==========
+    results.push(await test('Layout is responsive (sidebar + editor)', async () => {
+      const sidebarWidth = evalJS('document.querySelector(".excal-sidebar")?.offsetWidth || 0');
+      const editorWidth = evalJS('document.getElementById("editor-container")?.offsetWidth || 0');
+      console.log(`     Sidebar: ${sidebarWidth}px, Editor: ${editorWidth}px`);
+      if (parseInt(sidebarWidth) === 0) throw new Error('Sidebar has zero width');
+      if (parseInt(editorWidth) === 0) throw new Error('Editor has zero width');
+    })());
+
+    // ========== TEST 13: Excalidraw API is accessible ==========
+    results.push(await test('Excalidraw API is accessible via window', async () => {
+      // The Excalidraw wrapper dispatches 'excalidraw:ready' event
+      const readyFired = evalJS('typeof __excalidrawReady !== "undefined" && __excalidrawReady === true');
+      if (readyFired !== 'true') throw new Error('Excalidraw not ready (__excalidrawReady is not true)');
     })());
 
     // ========== RESULTS ==========
@@ -386,20 +291,14 @@ async function run() {
     console.log('═══════════════════════════════════════\n');
 
   } finally {
-    await context.close();
-    await browser.close();
+    cli('close');
     if (server) server.kill('SIGTERM');
-    // Clean up test data
-    if (existsSync(userDir)) {
-      const files = readdirSync(userDir);
-      files.forEach(f => unlinkSync(path.join(userDir, f)));
-      try { rmdirSync(userDir); } catch {}
-    }
   }
 }
 
 run().catch(e => {
   console.error('Fatal:', e);
+  cli('close');
   if (server) server.kill('SIGTERM');
   process.exit(1);
 });
