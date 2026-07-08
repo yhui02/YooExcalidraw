@@ -75,6 +75,7 @@ export default function ExcalidrawWrapper() {
   const libraryInitedRef = useRef(false);
   const [ExcalidrawComp, setExcalidrawComp] = useState(null);
   const [theme, setTheme] = useState('light');
+  const [langCode, setLangCode] = useState('zh-CN');
   const [apiReady, setApiReady] = useState(false);
   const excRef = useRef(null);
   const excalidrawAPIRef = useRef(null);
@@ -95,6 +96,7 @@ export default function ExcalidrawWrapper() {
           ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
           : s.theme;
         if (effective === 'light' || effective === 'dark') setTheme(effective);
+        if (typeof s.language === 'string') setLangCode(s.language);
       }
       // Load pending library items from localStorage (saved when no file was loaded)
       const pendingLib = localStorage.getItem('yooexcalidraw_pending_library');
@@ -119,12 +121,18 @@ export default function ExcalidrawWrapper() {
       autoSaveRef.current = e.detail.autoSave === true;
     }
 
+    function handleLangChange(e) {
+      if (e.detail.language) setLangCode(e.detail.language);
+    }
+
     window.addEventListener('excalidraw:theme-changed', handleThemeChange);
     window.addEventListener('excalidraw:settings-changed', handleSettingsChange);
+    window.addEventListener('excalidraw:lang-changed', handleLangChange);
 
     return () => {
       window.removeEventListener('excalidraw:theme-changed', handleThemeChange);
       window.removeEventListener('excalidraw:settings-changed', handleSettingsChange);
+      window.removeEventListener('excalidraw:lang-changed', handleLangChange);
     };
   }, []);
 
@@ -349,6 +357,17 @@ export default function ExcalidrawWrapper() {
     );
   }
 
+  // Map project language codes to Excalidraw's expected locale codes
+  const excalidrawLocaleMap: Record<string, string> = {
+    ja: 'ja-JP',
+    ko: 'ko-KR',
+    fr: 'fr-FR',
+    de: 'de-DE',
+    es: 'es-ES',
+    ru: 'ru-RU',
+  };
+  const excalidrawLang = excalidrawLocaleMap[langCode] || langCode;
+
   return (
     <div
       ref={containerRef}
@@ -360,7 +379,7 @@ export default function ExcalidrawWrapper() {
         excalidrawAPI={initApi}
         onChange={onChange}
         onLibraryChange={onLibraryChange}
-        langCode="zh-CN"
+        langCode={excalidrawLang}
         theme={theme}
       />
     </div>

@@ -1,8 +1,11 @@
 ---
 import ExcalidrawWrapper from "@/components/ExcalidrawWrapper.tsx";
 import "@/styles/global.css";
+import { translations, getAvailableLanguages } from "@/lib/i18n.js";
 const excalidrawVersion = "0.18.1";
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const i18nTranslations = JSON.stringify(translations);
+const i18nLanguages = JSON.stringify(getAvailableLanguages());
 ---
 
 <!doctype html>
@@ -31,6 +34,27 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     document.documentElement.setAttribute("data-theme", e);
                 } catch (e) {}
             })();
+        </script>
+        <script is:inline define:vars={{ i18nTranslations, i18nLanguages }}>
+            window.__I18N_TRANSLATIONS__ = JSON.parse(i18nTranslations);
+            window.__I18N_LANGUAGES__ = JSON.parse(i18nLanguages);
+            window.__I18N_LANG__ = (function() {
+                try {
+                    var s = JSON.parse(localStorage.getItem("yooexcalidraw_settings") || "{}");
+                    return s.language || "zh-CN";
+                } catch (e) { return "zh-CN"; }
+            })();
+            window.t = function(key, params) {
+                var dict = window.__I18N_TRANSLATIONS__[window.__I18N_LANG__] || window.__I18N_TRANSLATIONS__["zh-CN"];
+                var str = dict[key] || window.__I18N_TRANSLATIONS__["zh-CN"][key] || key;
+                if (params) {
+                    for (var k in params) {
+                        str = str.replace(new RegExp("\\{" + k + "\\}", "g"), params[k]);
+                    }
+                }
+                return str;
+            };
+            document.documentElement.setAttribute("lang", window.__I18N_LANG__);
         </script>
         <style is:global>
             html,
@@ -636,6 +660,62 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 text-transform: uppercase;
                 letter-spacing: 0.05em;
             }
+            .theme-tabs {
+                display: inline-flex;
+                gap: 4px;
+                background: var(--color-base-200);
+                border-radius: 8px;
+                padding: 4px;
+            }
+            .theme-tab {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                padding: 6px 12px;
+                border: none;
+                border-radius: 6px;
+                background: transparent;
+                color: var(--color-base-content);
+                opacity: 0.7;
+                cursor: pointer;
+                font-size: 0.8125rem;
+                font-weight: 500;
+                white-space: nowrap;
+                transition: all 0.15s ease;
+            }
+            .theme-tab:hover {
+                opacity: 0.8;
+            }
+            .theme-tab.active {
+                background: var(--color-base-100);
+                opacity: 1;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            }
+            .theme-tab svg {
+                flex-shrink: 0;
+                overflow: hidden;
+            }
+            .lang-select {
+                width: 200px;
+                padding: 8px 32px 8px 10px;
+                border-radius: 8px;
+                border: 1px solid var(--color-base-300);
+                background: var(--color-base-100);
+                color: var(--color-base-content);
+                font-size: 0.8125rem;
+                font-weight: 500;
+                cursor: pointer;
+                outline: none;
+                appearance: none;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-position: right 10px center;
+                transition: border-color 0.15s ease;
+            }
+            .lang-select:focus {
+                border-color: var(--color-primary);
+            }
             .manage-dir-item {
                 display: flex;
                 align-items: center;
@@ -1026,7 +1106,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
             var activeFileHandle = null;
             var hasUnsavedChanges = false;
             var currentLibraryItems = [];
-            var settings = { theme: "auto", autoSave: false, showNavbar: true };
+            var settings = { theme: "auto", autoSave: false, showNavbar: true, language: "zh-CN" };
 
             function toast(type, msg) {
                 var c = document.getElementById("toast-container");
@@ -1061,15 +1141,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 el.style.display = "flex";
                 el.className = "excal-save-status status-" + state;
                 var title = "";
-                if (state === "saved") title = "已保存";
-                else if (state === "saving") title = "保存中...";
-                else if (state === "unsaved") title = "有修改未保存";
+                if (state === "saved") title = t("saved");
+                else if (state === "saving") title = t("saving");
+                else if (state === "unsaved") title = t("unsaved");
                 el.title = title;
             }
 
             function setCurrentFileName(name) {
                 document.getElementById("current-filename").textContent =
-                    name || "未选择文件";
+                    name || t("noFileSelected");
                 document.title = name
                     ? name + " - YooExcalidraw"
                     : "YooExcalidraw";
@@ -1235,10 +1315,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     container.innerHTML =
                         '<div id="folder-prompt" class="open-folder-prompt">' +
                         '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>' +
-                        "<span>打开一个文件夹</span>" +
+                        "<span>" + t("openFolder") + "</span>" +
                         '<button class="btn-primary" onclick="addDirectory()">' +
                         '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>' +
-                        " 选择文件夹</button></div>";
+                        " " + t("chooseFolder") + "</button></div>";
                     return;
                 }
                 var html = "";
@@ -1270,19 +1350,19 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     "</span>" +
                     '<span class="dir-add-btn" onclick="event.stopPropagation();createFileInDirById(\'' +
                     dir.id +
-                    '\')" title="新建画板">' +
+                    '\')" title="' + t("newCanvas") + '">' +
                     addIcon +
                     "</span>" +
                     '<span class="dir-close-btn" onclick="event.stopPropagation();removeDirFromSidebar(\'' +
                     dir.id +
-                    '\')" title="移除目录">✕</span>' +
+                    '\')" title="' + t("removeDir") + '">✕</span>' +
                     "</div>";
                 if (!dir.expanded) return header + "</div>";
 
                 var filesHtml = "";
                 if (dir.files.length === 0) {
                     filesHtml =
-                        '<div class="dir-empty">该目录下没有画板文件</div>';
+                        '<div class="dir-empty">' + t("noCanvasFiles") + '</div>';
                 } else {
                     for (var fi = 0; fi < dir.files.length; fi++) {
                         var f = dir.files[fi];
@@ -1307,10 +1387,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                             '<span class="file-actions">' +
                             '<button class="file-action-btn" onclick="event.stopPropagation();startRename(\'' +
                             f.id +
-                            '\')" title="重命名">✎</button>' +
+                            '\')" title="' + t("rename") + '">✎</button>' +
                             '<button class="file-action-btn danger" onclick="event.stopPropagation();deleteFile(\'' +
                             f.id +
-                            '\')" title="删除">✕</button>' +
+                            '\')" title="' + t("delete") + '">✕</button>' +
                             "</span></div>";
                     }
                 }
@@ -1359,7 +1439,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 if (!("showDirectoryPicker" in window)) {
                     toast(
                         "error",
-                        "您的浏览器不支持 File System Access API。请使用 Chrome 或 Edge。",
+                        t("noFileSystemAPI"),
                     );
                     return;
                 }
@@ -1370,14 +1450,14 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     });
                 } catch (e) {
                     if (e.name !== "AbortError")
-                        toast("error", "选择文件夹失败");
+                        toast("error", t("selectFolderFailed"));
                     return;
                 }
                 for (var i = 0; i < dirs.length; i++) {
                     if (await isSameDirectory(dirs[i].handle, handle)) {
                         toast(
                             "info",
-                            "目录「" + handle.name + "」已经添加过了",
+                            t("dirAlreadyAdded", { name: handle.name }),
                         );
                         return;
                     }
@@ -1398,12 +1478,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 if (dir.files.length > 0 && !activeFileId) {
                     selectFile(dir.files[0].id);
                 }
-                toast("success", "已添加目录「" + handle.name + "」");
+                toast("success", t("dirAdded", { name: handle.name }));
                 renderDirListManage();
             }
 
             function removeDirFromSidebar(dirId) {
-                if (confirm("确定要移除目录吗？（不会删除本地文件）")) {
+                if (confirm(t("removeDirConfirm"))) {
                     removeDirectory(dirId);
                 }
             }
@@ -1555,7 +1635,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
                 var now = new Date();
                 var defaultName =
-                    "未命名 " +
+                    t("untitled") + " " +
                     (now.getMonth() + 1) +
                     "/" +
                     now.getDate() +
@@ -1596,20 +1676,20 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     });
                     var content = buildExcalidrawContent([], {});
                     await writeFile(newHandle, content);
-                    toast("success", "已创建新画板");
+                    toast("success", t("newCanvasCreated"));
                     dir.expanded = true;
                     await scanDirFiles(dir);
                     renderFiles();
                     saveAppState();
                     selectFile(dir.id + "::" + uniqueName);
                 } catch (e) {
-                    toast("error", "创建失败");
+                    toast("error", t("createFailed"));
                 }
             }
 
             async function createFile() {
                 if (dirs.length === 0) {
-                    toast("warning", "请先添加一个目录");
+                    toast("warning", t("addDirFirst"));
                     return;
                 }
                 var dir = dirs[0];
@@ -1709,9 +1789,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     await scanDirFiles(dir);
                     renderFiles();
                     saveAppState();
-                    toast("success", "已重命名");
+                    toast("success", t("renamed"));
                 } catch (e) {
-                    toast("error", "重命名失败");
+                    toast("error", t("renameFailed"));
                 }
             }
 
@@ -1784,13 +1864,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 if (!dir) return;
                 if (
                     !confirm(
-                        "确定删除「" + file.name + "」吗？此操作不可恢复。",
+                        t("deleteConfirm", { name: file.name }),
                     )
                 )
                     return;
                 try {
                     await dir.handle.removeEntry(file.filename);
-                    toast("success", "已删除");
+                    toast("success", t("deleted"));
                     if (activeFileId === fileId) {
                         activeFileId = null;
                         activeFileHandle = null;
@@ -1813,13 +1893,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     renderFiles();
                     saveAppState();
                 } catch (e) {
-                    toast("error", "删除失败");
+                    toast("error", t("deleteFailed"));
                 }
             }
 
             async function exportFile() {
                 if (!activeFileHandle) {
-                    toast("warning", "请先选择一个画板");
+                    toast("warning", t("selectCanvasFirst"));
                     return;
                 }
                 var file = getFileById(activeFileId);
@@ -1838,9 +1918,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                    toast("success", "已导出");
+                    toast("success", t("exported"));
                 } catch (e) {
-                    toast("error", "导出失败");
+                    toast("error", t("exportFailed"));
                 }
             }
 
@@ -1904,6 +1984,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                             settings.theme = s.theme;
                         if (typeof s.showNavbar === "boolean")
                             settings.showNavbar = s.showNavbar;
+                        if (typeof s.language === "string")
+                            settings.language = s.language;
                     }
                 } catch (e) {}
             }
@@ -1939,10 +2021,111 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 settings.theme = t;
                 saveSettings();
                 applyTheme();
-                var radios = document.querySelectorAll('input[name="theme"]');
-                for (var i = 0; i < radios.length; i++) {
-                    radios[i].checked = radios[i].value === t;
+                var themeTabs = document.querySelectorAll('.theme-tab');
+                for (var i = 0; i < themeTabs.length; i++) {
+                    themeTabs[i].classList.toggle('active', themeTabs[i].getAttribute('data-value') === t);
                 }
+            }
+
+            function applyLanguage() {
+                window.__I18N_LANG__ = settings.language;
+                document.documentElement.setAttribute("lang", settings.language);
+                window.dispatchEvent(
+                    new CustomEvent("excalidraw:lang-changed", {
+                        detail: { language: settings.language },
+                    }),
+                );
+                renderFiles();
+                renderDirListManage();
+                updateSaveStatusText();
+                updateNavbarTitles();
+                updateSettingsDialogTitle();
+            }
+
+            function updateSaveStatusText() {
+                var el = document.getElementById("save-status");
+                if (!el || el.style.display === "none") return;
+                var state = el.className.match(/status-(\w+)/);
+                if (!state) return;
+                var s = state[1];
+                if (s === "saved") el.title = t("saved");
+                else if (s === "saving") el.title = t("saving");
+                else if (s === "unsaved") el.title = t("unsaved");
+            }
+
+            function updateNavbarTitles() {
+                var el = document.getElementById("current-filename");
+                if (el && !el.querySelector("input") && (!activeFileId || !activeFileHandle)) {
+                    el.textContent = t("noFileSelected");
+                }
+                var saveBtn = document.getElementById("save-btn");
+                if (saveBtn) saveBtn.title = t("save");
+                var manageBtns = document.querySelectorAll('[onclick="openManageDialog()"]');
+                manageBtns.forEach(function(btn) { btn.title = t("settings"); });
+                var createBtns = document.querySelectorAll('[onclick="createFile()"]');
+                createBtns.forEach(function(btn) { btn.title = t("newCanvas"); });
+                var addDirBtns = document.querySelectorAll('[onclick="addDirectory()"]');
+                addDirBtns.forEach(function(btn) { btn.title = t("addDirectory"); });
+                var emptyState = document.querySelector("#editor-empty-state span");
+                if (emptyState) emptyState.textContent = t("selectCanvasToStart");
+            }
+
+            function updateSettingsDialogTitle() {
+                var h2 = document.querySelector("#manage-dialog h2");
+                if (h2) h2.textContent = t("settings");
+                var noticeDiv = document.querySelector("#manage-dialog .manage-dialog-body > div:first-child");
+                if (noticeDiv) noticeDiv.textContent = t("fileLocalNotice");
+
+                setText("#autosave-section-title", t("autoSaveSection"));
+                setText("#auto-save-toggle + span", t("autoSaveSection"));
+                setText("#interface-section-title", t("interfaceSection"));
+                setText("#navbar-toggle + span", t("showNavbar"));
+                setText("#theme-section-title", t("appearanceSection"));
+                var themeTabs = document.querySelectorAll('.theme-tab');
+                if (themeTabs.length >= 1) themeTabs[0].title = t("followSystem");
+                if (themeTabs.length >= 2) themeTabs[1].title = t("light");
+                if (themeTabs.length >= 3) themeTabs[2].title = t("dark");
+                setText("#lang-section h3", t("languageSection"));
+                setText("#current-file-section-title", t("currentFile"));
+                setText("#dir-management-section-title", t("dirManagement"));
+
+                var closeBtn = document.querySelector(".manage-close-btn");
+                if (closeBtn) closeBtn.textContent = t("close");
+                var addDirBtn = document.querySelector('[onclick="addDirectory()"].btn-primary');
+                if (addDirBtn) addDirBtn.textContent = t("addDirButton");
+                var githubLink = document.querySelector("#manage-dialog a[href*='github']");
+                if (githubLink) githubLink.textContent = t("githubLink");
+
+                setText("#open-file-location-text", t("openInFileManager"));
+                var locBtn = document.getElementById("open-file-location-btn");
+                if (locBtn) locBtn.title = t("openInFileManager");
+            }
+
+            function setText(selector, text) {
+                var el = document.querySelector(selector);
+                if (el) el.textContent = text;
+            }
+
+            function populateLangSelect() {
+                var sel = document.getElementById("lang-select");
+                if (!sel) return;
+                sel.innerHTML = "";
+                var langs = window.__I18N_LANGUAGES__ || [];
+                for (var i = 0; i < langs.length; i++) {
+                    var opt = document.createElement("option");
+                    opt.value = langs[i].code;
+                    opt.textContent = langs[i].label;
+                    sel.appendChild(opt);
+                }
+                sel.value = settings.language;
+            }
+
+            function setLanguage(lang) {
+                settings.language = lang;
+                saveSettings();
+                applyLanguage();
+                var sel = document.getElementById("lang-select");
+                if (sel) sel.value = lang;
             }
 
             function toggleAutoSave(enabled) {
@@ -1986,15 +2169,17 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 if (!dialog) return;
                 updateCurrentFilePath();
                 renderDirListManage();
-                var radios = document.querySelectorAll('input[name="theme"]');
-                for (var i = 0; i < radios.length; i++) {
-                    radios[i].checked = radios[i].value === settings.theme;
+                var themeTabs = document.querySelectorAll('.theme-tab');
+                for (var i = 0; i < themeTabs.length; i++) {
+                    themeTabs[i].classList.toggle('active', themeTabs[i].getAttribute('data-value') === settings.theme);
                 }
+                populateLangSelect();
                 var navbarToggle = document.getElementById("navbar-toggle");
                 if (navbarToggle) navbarToggle.checked = settings.showNavbar;
                 var autoSaveToggle =
                     document.getElementById("auto-save-toggle");
                 if (autoSaveToggle) autoSaveToggle.checked = settings.autoSave;
+                updateSettingsDialogTitle();
                 dialog.showModal();
             }
 
@@ -2007,7 +2192,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 var el = document.getElementById("current-file-path");
                 if (!el) return;
                 if (!activeFileId || !activeFileHandle) {
-                    el.textContent = "未选择文件";
+                    el.textContent = t("noFileSelected");
                     return;
                 }
                 var dir = getFileDir(activeFileId);
@@ -2015,7 +2200,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 if (dir && file) {
                     el.textContent = dir.name + " / " + file.filename;
                 } else {
-                    el.textContent = "未知路径";
+                    el.textContent = t("unknownPath");
                 }
             }
 
@@ -2024,7 +2209,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 if (!el) return;
                 if (dirs.length === 0) {
                     el.innerHTML =
-                        '<div style="font-size:0.8125rem;opacity:0.4;padding:4px 0">暂无目录</div>';
+                        '<div style="font-size:0.8125rem;opacity:0.4;padding:4px 0">' + t("noDirs") + '</div>';
                     return;
                 }
                 var html = "";
@@ -2038,12 +2223,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                         '<span class="dir-actions">' +
                         "<button onclick=\"openDirectoryLocation('" +
                         d.id +
-                        '\')" title="在文件选择器中打开">' +
+                        '\')" title="' + t("openInFilePicker") + '">' +
                         '<svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>' +
                         "</button>" +
                         '<button class="danger" onclick="removeDirConfirm(\'' +
                         d.id +
-                        '\')" title="移除">' +
+                        '\')" title="' + t("remove") + '">' +
                         '<svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>' +
                         "</button>" +
                         "</span>" +
@@ -2058,17 +2243,17 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 try {
                     await window.showDirectoryPicker({ startIn: dir.handle });
                 } catch (e) {
-                    if (e.name !== "AbortError") toast("error", "打开目录失败");
+                    if (e.name !== "AbortError") toast("error", t("openDirFailed"));
                 }
             }
 
             async function openFileLocation() {
                 if (!activeFileHandle) {
-                    toast("warning", "请先选择一个文件");
+                    toast("warning", t("selectFileFirst"));
                     return;
                 }
                 if (!("showOpenFilePicker" in window)) {
-                    toast("error", "您的浏览器不支持该操作");
+                    toast("error", t("notSupported"));
                     return;
                 }
                 try {
@@ -2076,12 +2261,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                         startIn: activeFileHandle,
                     });
                 } catch (e) {
-                    if (e.name !== "AbortError") toast("error", "定位失败");
+                    if (e.name !== "AbortError") toast("error", t("locateFailed"));
                 }
             }
 
             function removeDirConfirm(dirId) {
-                if (confirm("确定要移除目录吗？（不会删除本地文件）")) {
+                if (confirm(t("removeDirConfirm"))) {
                     removeDirectory(dirId);
                     renderDirListManage();
                 }
@@ -2089,7 +2274,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
             function saveCurrentFile() {
                 if (!activeFileId) {
-                    toast("warning", "请先选择一个画板");
+                    toast("warning", t("selectCanvasFirst"));
                     return;
                 }
                 window.dispatchEvent(new CustomEvent("excalidraw:save-now"));
@@ -2121,7 +2306,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     e.preventDefault();
                     container.classList.remove("drag-over");
                     if (!("showDirectoryPicker" in window)) {
-                        toast("error", "您的浏览器不支持拖放文件夹");
+                        toast("error", t("noDragDrop"));
                         return;
                     }
                     var items = e.dataTransfer.items;
@@ -2156,7 +2341,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     if (await isSameDirectory(dirs[i].handle, handle)) {
                         toast(
                             "info",
-                            "目录「" + handle.name + "」已经添加过了",
+                            t("dirAlreadyAdded", { name: handle.name }),
                         );
                         return;
                     }
@@ -2173,12 +2358,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     if (perm !== "granted") {
                         toast(
                             "error",
-                            "无法获取目录「" + handle.name + "」的读写权限",
+                            t("noReadWritePermission", { name: handle.name }),
                         );
                         return;
                     }
                 } catch (e) {
-                    toast("error", "获取目录权限失败");
+                    toast("error", t("getPermissionFailed"));
                     return;
                 }
                 var dirId = "d" + nextDirId++;
@@ -2198,7 +2383,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 if (dir.files.length > 0 && !activeFileId) {
                     selectFile(dir.files[0].id);
                 }
-                toast("success", "已添加目录「" + handle.name + "」");
+                toast("success", t("dirAdded", { name: handle.name }));
             }
 
             function initSidebarToggle() {
@@ -2220,6 +2405,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 applyNavbar();
                 initSettingsUI();
                 updateSaveBtn();
+                populateLangSelect();
+                applyLanguage();
 
                 var savedState = loadAppState();
                 var savedHandles = await loadAllDirHandles();
@@ -2325,19 +2512,20 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         <dialog class="manage-dialog" id="manage-dialog">
             <div class="manage-dialog-inner">
                 <div class="manage-dialog-header">
-                    <h2>设置</h2>
+                    <h2 id="settings-title">设置</h2>
                 </div>
 
                 <div class="manage-dialog-body">
 
                 <div
+                    id="settings-notice"
                     style="font-size:0.75rem;opacity:0.8;margin-bottom:16px;line-height:1.5;padding:8px 10px;background:#fef9c3;border-radius:6px;color:#92400e"
                 >
                     文件仅在本地读写，不会上传。建议使用前先备份，以免异常导致内容丢失。
                 </div>
 
                 <div class="manage-section">
-                    <h3>自动保存</h3>
+                    <h3 id="autosave-section-title">自动保存</h3>
                     <label class="settings-label">
                         <input
                             type="checkbox"
@@ -2350,7 +2538,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                 </div>
 
                 <div class="manage-section">
-                    <h3>界面</h3>
+                    <h3 id="interface-section-title">界面</h3>
                     <label class="settings-label">
                         <input
                             type="checkbox"
@@ -2362,44 +2550,67 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     </label>
                 </div>
 
-                <div class="manage-section">
-                    <h3>外观</h3>
-                    <div style="display:flex;gap:16px;margin-top:2px">
-                        <label class="settings-label" style="gap:6px;padding:0">
-                            <input
-                                type="radio"
-                                name="theme"
-                                value="auto"
-                                class="radio radio-sm"
-                                onchange="setTheme('auto')"
-                            />
-                            <span class="text-sm">跟随系统</span>
-                        </label>
-                        <label class="settings-label" style="gap:6px;padding:0">
-                            <input
-                                type="radio"
-                                name="theme"
-                                value="light"
-                                class="radio radio-sm"
-                                onchange="setTheme('light')"
-                            />
-                            <span class="text-sm">浅色</span>
-                        </label>
-                        <label class="settings-label" style="gap:6px;padding:0">
-                            <input
-                                type="radio"
-                                name="theme"
-                                value="dark"
-                                class="radio radio-sm"
-                                onchange="setTheme('dark')"
-                            />
-                            <span class="text-sm">深色</span>
-                        </label>
+                <div class="manage-section" id="theme-section">
+                    <h3 id="theme-section-title">外观</h3>
+                    <div class="theme-tabs">
+                        <button
+                            type="button"
+                            class="theme-tab"
+                            data-value="auto"
+                            title="跟随系统"
+                            onclick="setTheme('auto')"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                                <line x1="8" y1="21" x2="16" y2="21"/>
+                                <line x1="12" y1="17" x2="12" y2="21"/>
+                            </svg>
+                        </button>
+                        <button
+                            type="button"
+                            class="theme-tab"
+                            data-value="light"
+                            title="浅色"
+                            onclick="setTheme('light')"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="5"/>
+                                <line x1="12" y1="1" x2="12" y2="3"/>
+                                <line x1="12" y1="21" x2="12" y2="23"/>
+                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                                <line x1="1" y1="12" x2="3" y2="12"/>
+                                <line x1="21" y1="12" x2="23" y2="12"/>
+                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                            </svg>
+                        </button>
+                        <button
+                            type="button"
+                            class="theme-tab"
+                            data-value="dark"
+                            title="深色"
+                            onclick="setTheme('dark')"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
+                <div class="manage-section" id="lang-section">
+                    <h3 id="lang-section-title">语言</h3>
+                    <select
+                        id="lang-select"
+                        class="lang-select"
+                        onchange="setLanguage(this.value)"
+                    >
+                    </select>
+                </div>
+
                 <div class="manage-section">
-                    <h3>当前文件</h3>
+                    <h3 id="current-file-section-title">当前文件</h3>
                     <div
                         id="current-file-path"
                         style="font-size:0.8125rem;opacity:0.6;word-break:break-all"
@@ -2407,6 +2618,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                     </div>
                     <button
                         class="btn-icon"
+                        id="open-file-location-btn"
                         onclick="openFileLocation()"
                         title="在文件管理器中定位"
                         style="margin-top:6px;font-size:0.8125rem;gap:4px"
@@ -2424,12 +2636,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                                 d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"
                             ></path></svg
                         >
-                        在文件管理器中定位
+                        <span id="open-file-location-text">在文件管理器中定位</span>
                     </button>
                 </div>
 
                 <div class="manage-section">
-                    <h3>目录管理</h3>
+                    <h3 id="dir-management-section-title">目录管理</h3>
                     <div id="dir-list-drop-zone">
                         <div id="dir-list-manage"></div>
                     </div>
