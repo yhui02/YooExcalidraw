@@ -1415,7 +1415,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                         }
                     }
                     dir.files.sort(function (a, b) {
-                        return b.name.localeCompare(a.name);
+                        return a.name.localeCompare(b.name, 'zh-CN');
                     });
                 } catch (e) {
                     console.warn("Failed to scan directory", dir.name, e);
