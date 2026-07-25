@@ -314,6 +314,130 @@ export default function ExcalidrawWrapper() {
     };
   }, [doSave, loadScene]);
 
+  // 多图拖放支持：Excalidraw 原生 drop 只会插入 dataTransfer.files 里的第一个文件，
+  // 这里在捕获阶段拦截"多张图片"的拖放，把它们全部插入画布；单张/非图片仍交给原生处理。
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleMultiImageDrop = async (e: DragEvent) => {
+      const dt = e.dataTransfer;
+      if (!dt) return;
+      // 同步快照文件列表与坐标：await 之后 dataTransfer 可能被浏览器回收
+      const files = Array.from(dt.files || []).filter((f) =>
+        f.type.startsWith('image/'),
+      );
+      const clientX = e.clientX;
+      const clientY = e.clientY;
+      // 单张图片（或非图片）走 Excalidraw 原生逻辑，避免干扰 .excalidraw / 组件库拖放
+      if (files.length < 2) return;
+
+      const api = excRef.current;
+      if (!api) return;
+
+      // 在第一个 await 之前同步阻止默认行为与事件传播，避免浏览器打开文件、
+      // 并防止 Excalidraw 的原生单文件 drop 处理再次插入第一张图
+      e.preventDefault();
+      e.stopPropagation();
+
+      const { getDataURL, convertToExcalidrawElements, viewportCoordsToSceneCoords } =
+        await import('@excalidraw/excalidraw');
+
+      const { x: dropX, y: dropY } = viewportCoordsToSceneCoords(
+        { clientX, clientY },
+        api.getAppState(),
+      );
+
+      const MAX_DIM = 1920;
+      const GAP = 24;
+
+      // 读取每张图片的 dataURL 与原始尺寸
+      const loaded: { file: File; dataURL: string; w: number; h: number }[] = [];
+      for (const file of files) {
+        try {
+          const dataURL = await getDataURL(file);
+          const dims = await new Promise<{ w: number; h: number } | null>((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+            img.onerror = () => resolve(null);
+            img.src = dataURL;
+          });
+          if (!dims || !dims.w || !dims.h) continue;
+          const scale = Math.min(1, MAX_DIM / Math.max(dims.w, dims.h));
+          loaded.push({
+            file,
+            dataURL,
+            w: Math.max(1, Math.round(dims.w * scale)),
+            h: Math.max(1, Math.round(dims.h * scale)),
+          });
+        } catch (err) {
+          // 跳过读取失败的图片
+        }
+      }
+      if (loaded.length === 0) return;
+
+      const now = Date.now();
+      const binaryFiles = loaded.map((item, i) => ({
+        id: `multi-drop-${now}-${i}`,
+        mimeType: item.file.type,
+        dataURL: item.dataURL,
+        created: now,
+        lastRetrieved: now,
+      }));
+
+      // 按网格排布：每列宽、每行高取该列/行图片的最大值，图片在单元格内居中
+      const cols = Math.ceil(Math.sqrt(loaded.length));
+      const rows = Math.ceil(loaded.length / cols);
+      const colWidths = new Array(cols).fill(0);
+      const rowHeights = new Array(rows).fill(0);
+      loaded.forEach((item, i) => {
+        const c = i % cols;
+        const r = Math.floor(i / cols);
+        colWidths[c] = Math.max(colWidths[c], item.w);
+        rowHeights[r] = Math.max(rowHeights[r], item.h);
+      });
+      const colX: number[] = [0];
+      for (let c = 1; c < cols; c++) colX[c] = colX[c - 1] + colWidths[c - 1] + GAP;
+      const rowY: number[] = [0];
+      for (let r = 1; r < rows; r++) rowY[r] = rowY[r - 1] + rowHeights[r - 1] + GAP;
+
+      const skeletons = loaded.map((item, i) => {
+        const c = i % cols;
+        const r = Math.floor(i / cols);
+        return {
+          type: 'image' as const,
+          fileId: binaryFiles[i].id,
+          x: dropX + colX[c] + (colWidths[c] - item.w) / 2,
+          y: dropY + rowY[r] + (rowHeights[r] - item.h) / 2,
+          width: item.w,
+          height: item.h,
+          strokeColor: 'transparent',
+          status: 'saved' as const,
+          scale: [1, 1] as [number, number],
+        };
+      });
+
+      const newElements = convertToExcalidrawElements(skeletons as any);
+      api.addFiles(binaryFiles as any);
+
+      const selectedElementIds: Record<string, boolean> = {};
+      newElements.forEach((el) => {
+        selectedElementIds[el.id] = true;
+      });
+
+      // updateScene 内部会 syncInvalidIndices，自动为新元素分配有效索引
+      api.updateScene({
+        elements: [...api.getSceneElements(), ...newElements],
+        appState: { selectedElementIds },
+      });
+    };
+
+    container.addEventListener('drop', handleMultiImageDrop, true);
+    return () => container.removeEventListener('drop', handleMultiImageDrop, true);
+    // .exc-host 容器只有在 ExcalidrawComp 异步加载完成后才渲染，
+    // 必须依赖 ExcalidrawComp，否则首次挂载时 containerRef.current 为 null，监听器永远不会绑定
+  }, [ExcalidrawComp]);
+
   const initApi = useCallback(function(api) {
     excRef.current = api;
     excalidrawAPIRef.current = api;

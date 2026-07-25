@@ -38,18 +38,30 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
         <script is:inline define:vars={{ i18nTranslations, i18nLanguages }}>
             window.__I18N_TRANSLATIONS__ = JSON.parse(i18nTranslations);
             window.__I18N_LANGUAGES__ = JSON.parse(i18nLanguages);
-            window.__I18N_LANG__ = (function() {
+            window.__I18N_LANG__ = (function () {
                 try {
-                    var s = JSON.parse(localStorage.getItem("yooexcalidraw_settings") || "{}");
+                    var s = JSON.parse(
+                        localStorage.getItem("yooexcalidraw_settings") || "{}",
+                    );
                     return s.language || "zh-CN";
-                } catch (e) { return "zh-CN"; }
+                } catch (e) {
+                    return "zh-CN";
+                }
             })();
-            window.t = function(key, params) {
-                var dict = window.__I18N_TRANSLATIONS__[window.__I18N_LANG__] || window.__I18N_TRANSLATIONS__["zh-CN"];
-                var str = dict[key] || window.__I18N_TRANSLATIONS__["zh-CN"][key] || key;
+            window.t = function (key, params) {
+                var dict =
+                    window.__I18N_TRANSLATIONS__[window.__I18N_LANG__] ||
+                    window.__I18N_TRANSLATIONS__["zh-CN"];
+                var str =
+                    dict[key] ||
+                    window.__I18N_TRANSLATIONS__["zh-CN"][key] ||
+                    key;
                 if (params) {
                     for (var k in params) {
-                        str = str.replace(new RegExp("\\{" + k + "\\}", "g"), params[k]);
+                        str = str.replace(
+                            new RegExp("\\{" + k + "\\}", "g"),
+                            params[k],
+                        );
                     }
                 }
                 return str;
@@ -540,7 +552,9 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                 color: var(--color-base-content);
                 opacity: 0.5;
             }
-            #manage-btn { opacity: 0.6; }
+            #manage-btn {
+                opacity: 0.6;
+            }
             .btn-icon:hover {
                 opacity: 1;
                 background: var(--color-base-200);
@@ -1052,16 +1066,22 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
             });
 
             // Access Excalidraw library items via React fiber
-            window.__getExcalidrawLibraryItems = function() {
+            window.__getExcalidrawLibraryItems = function () {
                 try {
-                    var island = document.querySelector('astro-island');
+                    var island = document.querySelector("astro-island");
                     if (!island) return [];
-                    var key = Object.keys(island).find(function(k) { return k.startsWith('__reactContainer'); });
+                    var key = Object.keys(island).find(function (k) {
+                        return k.startsWith("__reactContainer");
+                    });
                     if (!key) return [];
                     var fiber = island[key];
                     function findApp(node, depth) {
                         if (!node || depth > 60) return null;
-                        if (node.stateNode && node.stateNode.library && node.stateNode.library.currLibraryItems) {
+                        if (
+                            node.stateNode &&
+                            node.stateNode.library &&
+                            node.stateNode.library.currLibraryItems
+                        ) {
                             return node.stateNode.library;
                         }
                         var result = findApp(node.child, depth + 1);
@@ -1071,19 +1091,27 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                     var lib = findApp(fiber, 0);
                     if (!lib) return [];
                     return lib.currLibraryItems || [];
-                } catch (e) { return []; }
+                } catch (e) {
+                    return [];
+                }
             };
 
-            window.__setExcalidrawLibraryItems = function(items) {
+            window.__setExcalidrawLibraryItems = function (items) {
                 try {
-                    var island = document.querySelector('astro-island');
+                    var island = document.querySelector("astro-island");
                     if (!island) return false;
-                    var key = Object.keys(island).find(function(k) { return k.startsWith('__reactContainer'); });
+                    var key = Object.keys(island).find(function (k) {
+                        return k.startsWith("__reactContainer");
+                    });
                     if (!key) return false;
                     var fiber = island[key];
                     function findApp(node, depth) {
                         if (!node || depth > 60) return null;
-                        if (node.stateNode && node.stateNode.library && node.stateNode.library.currLibraryItems) {
+                        if (
+                            node.stateNode &&
+                            node.stateNode.library &&
+                            node.stateNode.library.currLibraryItems
+                        ) {
                             return node.stateNode;
                         }
                         var result = findApp(node.child, depth + 1);
@@ -1094,10 +1122,13 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                     if (!app || !app.library) return false;
                     app.library.setLibrary(items);
                     // Trigger React re-render
-                    if (typeof app.forceUpdate === 'function') app.forceUpdate();
+                    if (typeof app.forceUpdate === "function")
+                        app.forceUpdate();
                     currentLibraryItems = items;
                     return true;
-                } catch (e) { return false; }
+                } catch (e) {
+                    return false;
+                }
             };
 
             var dirs = [];
@@ -1106,7 +1137,12 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
             var activeFileHandle = null;
             var hasUnsavedChanges = false;
             var currentLibraryItems = [];
-            var settings = { theme: "auto", autoSave: false, showNavbar: true, language: "zh-CN" };
+            var settings = {
+                theme: "auto",
+                autoSave: false,
+                showNavbar: true,
+                language: "zh-CN",
+            };
 
             function toast(type, msg) {
                 var c = document.getElementById("toast-container");
@@ -1315,10 +1351,14 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                     container.innerHTML =
                         '<div id="folder-prompt" class="open-folder-prompt">' +
                         '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>' +
-                        "<span>" + t("openFolder") + "</span>" +
+                        "<span>" +
+                        t("openFolder") +
+                        "</span>" +
                         '<button class="btn-primary" onclick="addDirectory()">' +
                         '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>' +
-                        " " + t("chooseFolder") + "</button></div>";
+                        " " +
+                        t("chooseFolder") +
+                        "</button></div>";
                     return;
                 }
                 var html = "";
@@ -1350,19 +1390,25 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                     "</span>" +
                     '<span class="dir-add-btn" onclick="event.stopPropagation();createFileInDirById(\'' +
                     dir.id +
-                    '\')" title="' + t("newCanvas") + '">' +
+                    '\')" title="' +
+                    t("newCanvas") +
+                    '">' +
                     addIcon +
                     "</span>" +
                     '<span class="dir-close-btn" onclick="event.stopPropagation();removeDirFromSidebar(\'' +
                     dir.id +
-                    '\')" title="' + t("removeDir") + '">✕</span>' +
+                    '\')" title="' +
+                    t("removeDir") +
+                    '">✕</span>' +
                     "</div>";
                 if (!dir.expanded) return header + "</div>";
 
                 var filesHtml = "";
                 if (dir.files.length === 0) {
                     filesHtml =
-                        '<div class="dir-empty">' + t("noCanvasFiles") + '</div>';
+                        '<div class="dir-empty">' +
+                        t("noCanvasFiles") +
+                        "</div>";
                 } else {
                     for (var fi = 0; fi < dir.files.length; fi++) {
                         var f = dir.files[fi];
@@ -1387,10 +1433,14 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                             '<span class="file-actions">' +
                             '<button class="file-action-btn" onclick="event.stopPropagation();startRename(\'' +
                             f.id +
-                            '\')" title="' + t("rename") + '">✎</button>' +
+                            '\')" title="' +
+                            t("rename") +
+                            '">✎</button>' +
                             '<button class="file-action-btn danger" onclick="event.stopPropagation();deleteFile(\'' +
                             f.id +
-                            '\')" title="' + t("delete") + '">✕</button>' +
+                            '\')" title="' +
+                            t("delete") +
+                            '">✕</button>' +
                             "</span></div>";
                     }
                 }
@@ -1437,10 +1487,7 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
 
             async function addDirectory() {
                 if (!("showDirectoryPicker" in window)) {
-                    toast(
-                        "error",
-                        t("noFileSystemAPI"),
-                    );
+                    toast("error", t("noFileSystemAPI"));
                     return;
                 }
                 var handle;
@@ -1545,7 +1592,7 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                         }
                     }
                     dir.files.sort(function (a, b) {
-                        return a.name.localeCompare(b.name, 'zh-CN');
+                        return a.name.localeCompare(b.name, "zh-CN");
                     });
                 } catch (e) {
                     console.warn("Failed to scan directory", dir.name, e);
@@ -1575,7 +1622,12 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                 }
             }
 
-            function buildExcalidrawContent(elements, appState, files, libraryItems) {
+            function buildExcalidrawContent(
+                elements,
+                appState,
+                files,
+                libraryItems,
+            ) {
                 return {
                     type: "excalidraw",
                     version: 2,
@@ -1635,7 +1687,8 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
 
                 var now = new Date();
                 var defaultName =
-                    t("untitled") + " " +
+                    t("untitled") +
+                    " " +
                     (now.getMonth() + 1) +
                     "/" +
                     now.getDate() +
@@ -1862,12 +1915,7 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                 if (!file) return;
                 var dir = getDirById(file.dirId);
                 if (!dir) return;
-                if (
-                    !confirm(
-                        t("deleteConfirm", { name: file.name }),
-                    )
-                )
-                    return;
+                if (!confirm(t("deleteConfirm", { name: file.name }))) return;
                 try {
                     await dir.handle.removeEntry(file.filename);
                     toast("success", t("deleted"));
@@ -1936,9 +1984,17 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                     return;
                 setSaveStatus("saving");
                 // Merge library items from React fiber into scene data
-                var sceneData = typeof detail.sceneData === 'string' ? JSON.parse(detail.sceneData) : detail.sceneData;
-                if (!sceneData.libraryItems || sceneData.libraryItems.length === 0) {
-                    sceneData.libraryItems = window.__getExcalidrawLibraryItems ? window.__getExcalidrawLibraryItems() : currentLibraryItems;
+                var sceneData =
+                    typeof detail.sceneData === "string"
+                        ? JSON.parse(detail.sceneData)
+                        : detail.sceneData;
+                if (
+                    !sceneData.libraryItems ||
+                    sceneData.libraryItems.length === 0
+                ) {
+                    sceneData.libraryItems = window.__getExcalidrawLibraryItems
+                        ? window.__getExcalidrawLibraryItems()
+                        : currentLibraryItems;
                 }
                 doWrite(detail.fileId, activeFileHandle, sceneData);
             });
@@ -1949,7 +2005,9 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                     hasUnsavedChanges = true;
                     setSaveStatus("unsaved");
                     // Trigger a save-now so library changes are persisted immediately
-                    window.dispatchEvent(new CustomEvent("excalidraw:save-now"));
+                    window.dispatchEvent(
+                        new CustomEvent("excalidraw:save-now"),
+                    );
                 }
             });
 
@@ -2021,15 +2079,21 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                 settings.theme = t;
                 saveSettings();
                 applyTheme();
-                var themeTabs = document.querySelectorAll('.theme-tab');
+                var themeTabs = document.querySelectorAll(".theme-tab");
                 for (var i = 0; i < themeTabs.length; i++) {
-                    themeTabs[i].classList.toggle('active', themeTabs[i].getAttribute('data-value') === t);
+                    themeTabs[i].classList.toggle(
+                        "active",
+                        themeTabs[i].getAttribute("data-value") === t,
+                    );
                 }
             }
 
             function applyLanguage() {
                 window.__I18N_LANG__ = settings.language;
-                document.documentElement.setAttribute("lang", settings.language);
+                document.documentElement.setAttribute(
+                    "lang",
+                    settings.language,
+                );
                 window.dispatchEvent(
                     new CustomEvent("excalidraw:lang-changed", {
                         detail: { language: settings.language },
@@ -2055,25 +2119,46 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
 
             function updateNavbarTitles() {
                 var el = document.getElementById("current-filename");
-                if (el && !el.querySelector("input") && (!activeFileId || !activeFileHandle)) {
+                if (
+                    el &&
+                    !el.querySelector("input") &&
+                    (!activeFileId || !activeFileHandle)
+                ) {
                     el.textContent = t("noFileSelected");
                 }
                 var saveBtn = document.getElementById("save-btn");
                 if (saveBtn) saveBtn.title = t("save");
-                var manageBtns = document.querySelectorAll('[onclick="openManageDialog()"]');
-                manageBtns.forEach(function(btn) { btn.title = t("settings"); });
-                var createBtns = document.querySelectorAll('[onclick="createFile()"]');
-                createBtns.forEach(function(btn) { btn.title = t("newCanvas"); });
-                var addDirBtns = document.querySelectorAll('[onclick="addDirectory()"]');
-                addDirBtns.forEach(function(btn) { btn.title = t("addDirectory"); });
-                var emptyState = document.querySelector("#editor-empty-state span");
-                if (emptyState) emptyState.textContent = t("selectCanvasToStart");
+                var manageBtns = document.querySelectorAll(
+                    '[onclick="openManageDialog()"]',
+                );
+                manageBtns.forEach(function (btn) {
+                    btn.title = t("settings");
+                });
+                var createBtns = document.querySelectorAll(
+                    '[onclick="createFile()"]',
+                );
+                createBtns.forEach(function (btn) {
+                    btn.title = t("newCanvas");
+                });
+                var addDirBtns = document.querySelectorAll(
+                    '[onclick="addDirectory()"]',
+                );
+                addDirBtns.forEach(function (btn) {
+                    btn.title = t("addDirectory");
+                });
+                var emptyState = document.querySelector(
+                    "#editor-empty-state span",
+                );
+                if (emptyState)
+                    emptyState.textContent = t("selectCanvasToStart");
             }
 
             function updateSettingsDialogTitle() {
                 var h2 = document.querySelector("#manage-dialog h2");
                 if (h2) h2.textContent = t("settings");
-                var noticeDiv = document.querySelector("#manage-dialog .manage-dialog-body > div:first-child");
+                var noticeDiv = document.querySelector(
+                    "#manage-dialog .manage-dialog-body > div:first-child",
+                );
                 if (noticeDiv) noticeDiv.textContent = t("fileLocalNotice");
 
                 setText("#autosave-section-title", t("autoSaveSection"));
@@ -2081,8 +2166,9 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                 setText("#interface-section-title", t("interfaceSection"));
                 setText("#navbar-toggle + span", t("showNavbar"));
                 setText("#theme-section-title", t("appearanceSection"));
-                var themeTabs = document.querySelectorAll('.theme-tab');
-                if (themeTabs.length >= 1) themeTabs[0].title = t("followSystem");
+                var themeTabs = document.querySelectorAll(".theme-tab");
+                if (themeTabs.length >= 1)
+                    themeTabs[0].title = t("followSystem");
                 if (themeTabs.length >= 2) themeTabs[1].title = t("light");
                 if (themeTabs.length >= 3) themeTabs[2].title = t("dark");
                 setText("#lang-section h3", t("languageSection"));
@@ -2091,9 +2177,13 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
 
                 var closeBtn = document.querySelector(".manage-close-btn");
                 if (closeBtn) closeBtn.textContent = t("close");
-                var addDirBtn = document.querySelector('[onclick="addDirectory()"].btn-primary');
+                var addDirBtn = document.querySelector(
+                    '[onclick="addDirectory()"].btn-primary',
+                );
                 if (addDirBtn) addDirBtn.textContent = t("addDirButton");
-                var githubLink = document.querySelector("#manage-dialog a[href*='github']");
+                var githubLink = document.querySelector(
+                    "#manage-dialog a[href*='github']",
+                );
                 if (githubLink) githubLink.textContent = t("githubLink");
 
                 setText("#open-file-location-text", t("openInFileManager"));
@@ -2169,9 +2259,13 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                 if (!dialog) return;
                 updateCurrentFilePath();
                 renderDirListManage();
-                var themeTabs = document.querySelectorAll('.theme-tab');
+                var themeTabs = document.querySelectorAll(".theme-tab");
                 for (var i = 0; i < themeTabs.length; i++) {
-                    themeTabs[i].classList.toggle('active', themeTabs[i].getAttribute('data-value') === settings.theme);
+                    themeTabs[i].classList.toggle(
+                        "active",
+                        themeTabs[i].getAttribute("data-value") ===
+                            settings.theme,
+                    );
                 }
                 populateLangSelect();
                 var navbarToggle = document.getElementById("navbar-toggle");
@@ -2209,7 +2303,9 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                 if (!el) return;
                 if (dirs.length === 0) {
                     el.innerHTML =
-                        '<div style="font-size:0.8125rem;opacity:0.4;padding:4px 0">' + t("noDirs") + '</div>';
+                        '<div style="font-size:0.8125rem;opacity:0.4;padding:4px 0">' +
+                        t("noDirs") +
+                        "</div>";
                     return;
                 }
                 var html = "";
@@ -2223,12 +2319,16 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                         '<span class="dir-actions">' +
                         "<button onclick=\"openDirectoryLocation('" +
                         d.id +
-                        '\')" title="' + t("openInFilePicker") + '">' +
+                        '\')" title="' +
+                        t("openInFilePicker") +
+                        '">' +
                         '<svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>' +
                         "</button>" +
                         '<button class="danger" onclick="removeDirConfirm(\'' +
                         d.id +
-                        '\')" title="' + t("remove") + '">' +
+                        '\')" title="' +
+                        t("remove") +
+                        '">' +
                         '<svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>' +
                         "</button>" +
                         "</span>" +
@@ -2243,7 +2343,8 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                 try {
                     await window.showDirectoryPicker({ startIn: dir.handle });
                 } catch (e) {
-                    if (e.name !== "AbortError") toast("error", t("openDirFailed"));
+                    if (e.name !== "AbortError")
+                        toast("error", t("openDirFailed"));
                 }
             }
 
@@ -2261,7 +2362,8 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                         startIn: activeFileHandle,
                     });
                 } catch (e) {
-                    if (e.name !== "AbortError") toast("error", t("locateFailed"));
+                    if (e.name !== "AbortError")
+                        toast("error", t("locateFailed"));
                 }
             }
 
@@ -2309,17 +2411,26 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                         toast("error", t("noDragDrop"));
                         return;
                     }
+                    // 必须在任何 await 之前同步收集所有 handle 的 Promise：
+                    // 一旦事件处理函数因 await 让出控制权，dataTransfer.items 就会被
+                    // 浏览器中和（neutered），之后再访问会失败，导致只有第一个被添加。
                     var items = e.dataTransfer.items;
+                    var handlePromises = [];
                     for (var i = 0; i < items.length; i++) {
                         var item = items[i];
                         if (item.kind !== "file") continue;
-                        try {
-                            var handle = await item.getAsFileSystemHandle();
-                            if (handle && handle.kind === "directory") {
-                                await addDirectoryFromHandle(handle);
-                            }
-                        } catch (err) {
-                            // ignore
+                        handlePromises.push(item.getAsFileSystemHandle());
+                    }
+                    var handles;
+                    try {
+                        handles = await Promise.all(handlePromises);
+                    } catch (err) {
+                        handles = [];
+                    }
+                    for (var j = 0; j < handles.length; j++) {
+                        var handle = handles[j];
+                        if (handle && handle.kind === "directory") {
+                            await addDirectoryFromHandle(handle);
                         }
                     }
                 });
@@ -2516,166 +2627,219 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                 </div>
 
                 <div class="manage-dialog-body">
-
-                <div
-                    id="settings-notice"
-                    style="font-size:0.75rem;opacity:0.8;margin-bottom:16px;line-height:1.5;padding:8px 10px;background:#fef9c3;border-radius:6px;color:#92400e"
-                >
-                    文件仅在本地读写，不会上传。建议使用前先备份，以免异常导致内容丢失。
-                </div>
-
-                <div class="manage-section">
-                    <h3 id="autosave-section-title">自动保存</h3>
-                    <label class="settings-label">
-                        <input
-                            type="checkbox"
-                            class="toggle toggle-sm"
-                            id="auto-save-toggle"
-                            onchange="toggleAutoSave(this.checked)"
-                        />
-                        <span class="text-sm">自动保存</span>
-                    </label>
-                </div>
-
-                <div class="manage-section">
-                    <h3 id="interface-section-title">界面</h3>
-                    <label class="settings-label">
-                        <input
-                            type="checkbox"
-                            class="toggle toggle-sm"
-                            id="navbar-toggle"
-                            onchange="toggleNavbar(this.checked)"
-                        />
-                        <span class="text-sm">显示顶部导航条</span>
-                    </label>
-                </div>
-
-                <div class="manage-section" id="theme-section">
-                    <h3 id="theme-section-title">外观</h3>
-                    <div class="theme-tabs">
-                        <button
-                            type="button"
-                            class="theme-tab"
-                            data-value="auto"
-                            title="跟随系统"
-                            onclick="setTheme('auto')"
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                                <line x1="8" y1="21" x2="16" y2="21"/>
-                                <line x1="12" y1="17" x2="12" y2="21"/>
-                            </svg>
-                        </button>
-                        <button
-                            type="button"
-                            class="theme-tab"
-                            data-value="light"
-                            title="浅色"
-                            onclick="setTheme('light')"
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="5"/>
-                                <line x1="12" y1="1" x2="12" y2="3"/>
-                                <line x1="12" y1="21" x2="12" y2="23"/>
-                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                                <line x1="1" y1="12" x2="3" y2="12"/>
-                                <line x1="21" y1="12" x2="23" y2="12"/>
-                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                            </svg>
-                        </button>
-                        <button
-                            type="button"
-                            class="theme-tab"
-                            data-value="dark"
-                            title="深色"
-                            onclick="setTheme('dark')"
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="manage-section" id="lang-section">
-                    <h3 id="lang-section-title">语言</h3>
-                    <select
-                        id="lang-select"
-                        class="lang-select"
-                        onchange="setLanguage(this.value)"
-                    >
-                    </select>
-                </div>
-
-                <div class="manage-section">
-                    <h3 id="current-file-section-title">当前文件</h3>
                     <div
-                        id="current-file-path"
-                        style="font-size:0.8125rem;opacity:0.6;word-break:break-all"
+                        id="settings-notice"
+                        style="font-size:0.75rem;opacity:0.8;margin-bottom:16px;line-height:1.5;padding:8px 10px;background:#fef9c3;border-radius:6px;color:#92400e"
                     >
+                        文件仅在本地读写，不会上传。建议使用前先备份，以免异常导致内容丢失。
                     </div>
-                    <button
-                        class="btn-icon"
-                        id="open-file-location-btn"
-                        onclick="openFileLocation()"
-                        title="在文件管理器中定位"
-                        style="margin-top:6px;font-size:0.8125rem;gap:4px"
-                    >
-                        <svg
-                            width="13"
-                            height="13"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            ><path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"
-                            ></path></svg
+
+                    <div class="manage-section">
+                        <h3 id="autosave-section-title">自动保存</h3>
+                        <label class="settings-label">
+                            <input
+                                type="checkbox"
+                                class="toggle toggle-sm"
+                                id="auto-save-toggle"
+                                onchange="toggleAutoSave(this.checked)"
+                            />
+                            <span class="text-sm">自动保存</span>
+                        </label>
+                    </div>
+
+                    <div class="manage-section">
+                        <h3 id="interface-section-title">界面</h3>
+                        <label class="settings-label">
+                            <input
+                                type="checkbox"
+                                class="toggle toggle-sm"
+                                id="navbar-toggle"
+                                onchange="toggleNavbar(this.checked)"
+                            />
+                            <span class="text-sm">显示顶部导航条</span>
+                        </label>
+                    </div>
+
+                    <div class="manage-section" id="theme-section">
+                        <h3 id="theme-section-title">外观</h3>
+                        <div class="theme-tabs">
+                            <button
+                                type="button"
+                                class="theme-tab"
+                                data-value="auto"
+                                title="跟随系统"
+                                onclick="setTheme('auto')"
+                            >
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <rect
+                                        x="2"
+                                        y="3"
+                                        width="20"
+                                        height="14"
+                                        rx="2"></rect>
+                                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                                    <line x1="12" y1="17" x2="12" y2="21"
+                                    ></line>
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                class="theme-tab"
+                                data-value="light"
+                                title="浅色"
+                                onclick="setTheme('light')"
+                            >
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <circle cx="12" cy="12" r="5"></circle>
+                                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                                    <line x1="12" y1="21" x2="12" y2="23"
+                                    ></line>
+                                    <line
+                                        x1="4.22"
+                                        y1="4.22"
+                                        x2="5.64"
+                                        y2="5.64"></line>
+                                    <line
+                                        x1="18.36"
+                                        y1="18.36"
+                                        x2="19.78"
+                                        y2="19.78"></line>
+                                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                                    <line x1="21" y1="12" x2="23" y2="12"
+                                    ></line>
+                                    <line
+                                        x1="4.22"
+                                        y1="19.78"
+                                        x2="5.64"
+                                        y2="18.36"></line>
+                                    <line
+                                        x1="18.36"
+                                        y1="5.64"
+                                        x2="19.78"
+                                        y2="4.22"></line>
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                class="theme-tab"
+                                data-value="dark"
+                                title="深色"
+                                onclick="setTheme('dark')"
+                            >
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path
+                                        d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+                                    ></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="manage-section" id="lang-section">
+                        <h3 id="lang-section-title">语言</h3>
+                        <select
+                            id="lang-select"
+                            class="lang-select"
+                            onchange="setLanguage(this.value)"
                         >
-                        <span id="open-file-location-text">在文件管理器中定位</span>
-                    </button>
-                </div>
-
-                <div class="manage-section">
-                    <h3 id="dir-management-section-title">目录管理</h3>
-                    <div id="dir-list-drop-zone">
-                        <div id="dir-list-manage"></div>
+                        </select>
                     </div>
-                    <button
-                        class="btn-primary"
-                        onclick="addDirectory()"
-                        style="margin-top:8px;padding:4px 12px;font-size:0.8125rem;border:none;border-radius:6px;cursor:pointer"
-                        >+ 添加目录</button
-                    >
-                </div>
 
-                <div
-                    class="manage-section"
-                    style="font-size:0.75rem;opacity:0.35;display:flex;flex-direction:column;gap:4px"
-                >
-                    <span>Excalidraw v{excalidrawVersion}</span>
-                    <a
-                        href="https://github.com/yhui02/YooExcalidraw"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style="color:inherit;text-decoration:underline"
-                        >GitHub 项目地址</a
-                    >
-                </div>
+                    <div class="manage-section">
+                        <h3 id="current-file-section-title">当前文件</h3>
+                        <div
+                            id="current-file-path"
+                            style="font-size:0.8125rem;opacity:0.6;word-break:break-all"
+                        >
+                        </div>
+                        <button
+                            class="btn-icon"
+                            id="open-file-location-btn"
+                            onclick="openFileLocation()"
+                            title="在文件管理器中定位"
+                            style="margin-top:6px;font-size:0.8125rem;gap:4px"
+                        >
+                            <svg
+                                width="13"
+                                height="13"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                ><path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"
+                                ></path></svg
+                            >
+                            <span id="open-file-location-text"
+                                >在文件管理器中定位</span
+                            >
+                        </button>
+                    </div>
 
+                    <div class="manage-section">
+                        <h3 id="dir-management-section-title">目录管理</h3>
+                        <div id="dir-list-drop-zone">
+                            <div id="dir-list-manage"></div>
+                        </div>
+                        <button
+                            class="btn-primary"
+                            onclick="addDirectory()"
+                            style="margin-top:8px;padding:4px 12px;font-size:0.8125rem;border:none;border-radius:6px;cursor:pointer"
+                            >+ 添加目录</button
+                        >
+                    </div>
+
+                    <div
+                        class="manage-section"
+                        style="font-size:0.75rem;opacity:0.35;display:flex;flex-direction:column;gap:4px"
+                    >
+                        <span>Excalidraw v{excalidrawVersion}</span>
+                        <a
+                            href="https://github.com/yhui02/YooExcalidraw"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style="color:inherit;text-decoration:underline"
+                            >GitHub 项目地址</a
+                        >
+                    </div>
                 </div>
 
                 <div class="manage-dialog-footer">
-                <div class="manage-footer">
-                    <button
-                        class="manage-close-btn"
-                        onclick="closeManageDialog()">关闭</button
-                    >
-                </div>
+                    <div class="manage-footer">
+                        <button
+                            class="manage-close-btn"
+                            onclick="closeManageDialog()">关闭</button
+                        >
+                    </div>
                 </div>
             </div>
         </dialog>
