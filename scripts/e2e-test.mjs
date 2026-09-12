@@ -277,6 +277,41 @@ async function run() {
       if (readyFired !== 'true') throw new Error('Excalidraw not ready (__excalidrawReady is not true)');
     })());
 
+    // ========== TEST 14: 未被引用的二进制会被剪除，被引用的保留 ==========
+    results.push(await test('Unreferenced binaries are pruned from saved files', async () => {
+      const testDir = path.join(DATA_DIR, 'e2etest');
+      mkdirSync(testDir, { recursive: true });
+      const testFile = path.join(testDir, 'test-prune.excalidraw');
+      const blob = (id) => ({ id, mimeType: 'image/png', dataURL: 'data:image/png;base64,AAAA', created: 1, lastRetrieved: 1 });
+      const imageData = (id, fileId) => ({ id, type: 'image', fileId, x: 0, y: 0, width: 10, height: 10, isDeleted: false, status: 'saved' });
+      const testData = {
+        type: 'excalidraw',
+        version: 2,
+        source: 'https://excalidraw.com',
+        elements: [imageData('el-1', 'used-in-scene')],
+        appState: {},
+        files: {
+          'used-in-scene': blob('used-in-scene'),
+          'used-in-library': blob('used-in-library'),
+          'orphan': blob('orphan'),
+        },
+        libraryItems: [{ id: 'lib-1', status: 'published', created: 1, elements: [imageData('lib-el-1', 'used-in-library')] }],
+      };
+      writeFileSync(testFile, JSON.stringify(testData, null, 2));
+
+      execSync(`node ${path.resolve('scripts', 'clean-excalidraw-files.mjs')} --write ${JSON.stringify(testFile)}`, { encoding: 'utf-8' });
+
+      const parsed = JSON.parse(readFileSync(testFile, 'utf-8'));
+      const kept = Object.keys(parsed.files).sort();
+      if (kept.join(',') !== 'used-in-library,used-in-scene') {
+        throw new Error(`Expected only referenced blobs, got: ${kept.join(', ')}`);
+      }
+      console.log(`     Kept: ${kept.join(', ')} (orphan pruned)`);
+
+      unlinkSync(testFile);
+      try { rmdirSync(testDir); } catch {}
+    })());
+
     // ========== RESULTS ==========
     const passed = results.filter(r => r === true).length;
     const total = results.length;

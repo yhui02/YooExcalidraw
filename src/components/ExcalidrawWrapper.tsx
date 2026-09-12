@@ -1,6 +1,103 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import '@excalidraw/excalidraw/index.css';
 
+// Excalidraw 内存里的文件仓库（app.files）只增不减：addFiles 是合并语义（已存在的 id 跳过、
+// 从不删除），resetScene() 也不清它。而 onChange 的第三个参数和 getFiles() 返回的都是这个全量
+// 对象，直接落盘会把会话里加载过的所有画布的二进制复制进当前文件（实测单文件可达 100MB+，且
+// 跨文件互相传染）。所以写盘前必须按真正被引用的 fileId 过滤。
+// 素材库条目里的图片元素同样依赖 files 里的 blob，因此引用集合要一起覆盖 libraryItems。
+function collectReferencedFileIds(
+  elements: readonly any[] | null | undefined,
+  libraryItems: readonly any[] | null | undefined,
+): Set<string> {
+  const ids = new Set<string>();
+  const scan = (list: readonly any[] | null | undefined) => {
+    if (!Array.isArray(list)) return;
+    for (const el of list) if (el && el.fileId) ids.add(el.fileId);
+  };
+  scan(elements);
+  for (const item of libraryItems || []) scan(item?.elements);
+  return ids;
+}
+
+function pickReferencedFiles(
+  elements: readonly any[] | null | undefined,
+  files: Record<string, any> | null | undefined,
+  libraryItems: readonly any[] | null | undefined,
+): Record<string, any> {
+  const picked: Record<string, any> = {};
+  if (!files) return picked;
+  for (const id of collectReferencedFileIds(elements, libraryItems)) {
+    if (files[id]) picked[id] = files[id];
+  }
+  return picked;
+}
+
+// 原地清空内存文件仓库。getFiles() 返回的就是 app.files 本身，删键即可生效；
+// 公开 API 没有 replaceScene，只能这样阻止跨画布无限累积。
+function clearFileStore(api): void {
+  const store = api?.getFiles?.();
+  if (!store) return;
+  for (const key of Object.keys(store)) delete store[key];
+}
+
+// 与 Excalidraw 原生单图插入同一套 fileId 算法（SHA-1(原始文件字节)），使同一张图重复拖入
+// 只留一份 blob，且与原生拖放路径互通。
+async function fileContentId(file: Blob): Promise<string> {
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const digest = await globalThis.crypto.subtle.digest('SHA-1', bytes);
+    return Array.from(new Uint8Array(digest), (b) =>
+      b.toString(16).padStart(2, '0'),
+    ).join('');
+  } catch {
+    // 非安全上下文没有 crypto.subtle，退化为随机 id（与原生降级行为一致，仅失去去重）
+    const buf = new Uint8Array(20);
+    globalThis.crypto.getRandomValues(buf);
+    return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+}
+
+const MAX_IMAGE_DIM = 1440; // 与原生 DEFAULT_MAX_IMAGE_WIDTH_OR_HEIGHT 对齐
+const MAX_INLINE_BYTES = 1.5 * 1024 * 1024;
+const IMAGE_QUALITY = 0.8; // 与原生 resizeImageFile 的 toBlob 质量对齐
+
+function loadImageElement(dataURL: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = dataURL;
+  });
+}
+
+// JPEG 不支持透明，只有源图本身是 JPEG 时才允许作为候选，否则回退候选用 PNG
+function encodeScaledImage(
+  img: HTMLImageElement,
+  w: number,
+  h: number,
+  srcType: string,
+): { mimeType: string; dataURL: string } | null {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, w, h);
+    let best: { mimeType: string; dataURL: string } | null = null;
+    for (const type of ['image/webp', srcType === 'image/jpeg' ? 'image/jpeg' : 'image/png']) {
+      const out = canvas.toDataURL(type, IMAGE_QUALITY);
+      // 浏览器不支持该编码时会静默回退成 PNG，以实际产出的前缀为准
+      if (!out.startsWith(`data:${type};`)) continue;
+      if (!best || out.length < best.dataURL.length) best = { mimeType: type, dataURL: out };
+    }
+    return best;
+  } catch {
+    return null;
+  }
+}
+
 function LibraryHandler({ excalidrawAPI }) {
   useEffect(() => {
     if (!excalidrawAPI) return;
@@ -144,6 +241,8 @@ export default function ExcalidrawWrapper() {
     }
     skipDirtyRef.current = true;
     try {
+      // 切画布 = 换文件仓库，先把上一个画布遗留的 blob 清掉再灌入本画布的
+      clearFileStore(excRef.current);
       if (sceneData.files) {
         var fileArray = Object.values(sceneData.files);
         if (fileArray.length > 0) {
@@ -230,7 +329,13 @@ export default function ExcalidrawWrapper() {
     // Include libraryItems in save data so they persist across sessions
     // Read directly from Excalidraw's internal library via React fiber
     const currentLib = (typeof window !== 'undefined' && window.__getExcalidrawLibraryItems) || (() => []);
-    const data = JSON.stringify({ elements, appState: filteredAppState, files, libraryItems: currentLib() });
+    const libraryItems = currentLib();
+    const data = JSON.stringify({
+      elements,
+      appState: filteredAppState,
+      files: pickReferencedFiles(elements, files, libraryItems),
+      libraryItems,
+    });
     if (data === lastSavedDataRef.current) return;
     window.dispatchEvent(new CustomEvent('excalidraw:dirty'));
     if (!autoSaveRef.current) return;
@@ -291,7 +396,12 @@ export default function ExcalidrawWrapper() {
         const files = excRef.current.getFiles();
         const currentLib = (typeof window !== 'undefined' && window.__getExcalidrawLibraryItems) || (() => []);
         const libraryItems = currentLib();
-        const data = JSON.stringify({ elements, appState: filteredAppState, files, libraryItems });
+        const data = JSON.stringify({
+          elements,
+          appState: filteredAppState,
+          files: pickReferencedFiles(elements, files, libraryItems),
+          libraryItems,
+        });
         lastSavedDataRef.current = data;
         if (fileIdRef.current) {
           doSave(fileIdRef.current, data, true);
@@ -348,28 +458,39 @@ export default function ExcalidrawWrapper() {
         api.getAppState(),
       );
 
-      const MAX_DIM = 1920;
       const GAP = 24;
 
-      // 读取每张图片的 dataURL 与原始尺寸
-      const loaded: { file: File; dataURL: string; w: number; h: number }[] = [];
+      // 逐张解析：fileId 用内容哈希（同一张图重复拖入只留一份 blob），超过原生上限或体积过大
+      // 时按原生口径（1440px / 0.8）重编码，避免把相机原片整张 base64 塞进画布文件
+      const loaded: { id: string; w: number; h: number }[] = [];
+      const binaryFilesById = new Map<string, { id: string; mimeType: string; dataURL: string }>();
       for (const file of files) {
         try {
+          const id = await fileContentId(file);
           const dataURL = await getDataURL(file);
-          const dims = await new Promise<{ w: number; h: number } | null>((resolve) => {
-            const img = new Image();
-            img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-            img.onerror = () => resolve(null);
-            img.src = dataURL;
-          });
-          if (!dims || !dims.w || !dims.h) continue;
-          const scale = Math.min(1, MAX_DIM / Math.max(dims.w, dims.h));
-          loaded.push({
-            file,
-            dataURL,
-            w: Math.max(1, Math.round(dims.w * scale)),
-            h: Math.max(1, Math.round(dims.h * scale)),
-          });
+          const img = await loadImageElement(dataURL);
+          if (!img || !img.naturalWidth || !img.naturalHeight) continue;
+          const scale = Math.min(
+            1,
+            MAX_IMAGE_DIM / Math.max(img.naturalWidth, img.naturalHeight),
+          );
+          const w = Math.max(1, Math.round(img.naturalWidth * scale));
+          const h = Math.max(1, Math.round(img.naturalHeight * scale));
+          loaded.push({ id, w, h });
+          if (binaryFilesById.has(id) || api.getFiles()[id]) continue;
+          // SVG 保持矢量、GIF 保留动画，重编码会毁掉二者
+          const reencodable = file.type !== 'image/svg+xml' && file.type !== 'image/gif';
+          if (!reencodable || (scale === 1 && file.size <= MAX_INLINE_BYTES)) {
+            binaryFilesById.set(id, { id, mimeType: file.type, dataURL });
+            continue;
+          }
+          const encoded = encodeScaledImage(img, w, h, file.type);
+          binaryFilesById.set(
+            id,
+            encoded && encoded.dataURL.length < dataURL.length
+              ? { id, mimeType: encoded.mimeType, dataURL: encoded.dataURL }
+              : { id, mimeType: file.type, dataURL },
+          );
         } catch (err) {
           // 跳过读取失败的图片
         }
@@ -377,10 +498,8 @@ export default function ExcalidrawWrapper() {
       if (loaded.length === 0) return;
 
       const now = Date.now();
-      const binaryFiles = loaded.map((item, i) => ({
-        id: `multi-drop-${now}-${i}`,
-        mimeType: item.file.type,
-        dataURL: item.dataURL,
+      const binaryFiles = Array.from(binaryFilesById.values(), (entry) => ({
+        ...entry,
         created: now,
         lastRetrieved: now,
       }));
@@ -406,7 +525,7 @@ export default function ExcalidrawWrapper() {
         const r = Math.floor(i / cols);
         return {
           type: 'image' as const,
-          fileId: binaryFiles[i].id,
+          fileId: loaded[i].id,
           x: dropX + colX[c] + (colWidths[c] - item.w) / 2,
           y: dropY + rowY[r] + (rowHeights[r] - item.h) / 2,
           width: item.w,

@@ -1628,11 +1628,32 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                 files,
                 libraryItems,
             ) {
+                var sceneElements = elements || [];
+                var sceneLibraryItems = libraryItems || [];
+                var referencedIds = {};
+                var collectRef = function (list) {
+                    if (!Array.isArray(list)) return;
+                    for (var el of list) {
+                        if (el && el.fileId) referencedIds[el.fileId] = true;
+                    }
+                };
+                // 落盘前的最后一道防线：只写画布元素与素材库真正引用到的二进制
+                collectRef(sceneElements);
+                for (var item of sceneLibraryItems) {
+                    collectRef(item && item.elements);
+                }
+                var referencedFiles = {};
+                if (files) {
+                    for (var fileId in files) {
+                        if (referencedIds[fileId])
+                            referencedFiles[fileId] = files[fileId];
+                    }
+                }
                 return {
                     type: "excalidraw",
                     version: 2,
                     source: "https://excalidraw.com",
-                    elements: elements || [],
+                    elements: sceneElements,
                     appState: appState
                         ? {
                               ...(appState.viewBackgroundColor != null
@@ -1646,8 +1667,8 @@ const i18nLanguages = JSON.stringify(getAvailableLanguages());
                                   : {}),
                           }
                         : {},
-                    files: files || {},
-                    libraryItems: libraryItems || [],
+                    files: referencedFiles,
+                    libraryItems: sceneLibraryItems,
                 };
             }
 
